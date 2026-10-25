@@ -30,6 +30,7 @@ public partial class InventoryViewModel : ObservableObject
     private List<StorageUnit> _units = new();
     private Dictionary<string, List<ItemCard>> _byHashName = new();
     private string? _loadedSteamId;
+    private bool _pricesWereRunning;
 
     public InventoryViewModel(SettingsService settings, LocalStore store, SteamInventoryService steam,
         PriceUpdater prices, StorageUnitService storage)
@@ -62,7 +63,15 @@ public partial class InventoryViewModel : ObservableObject
         LocationChoices.Add(Everything);
 
         _prices.PriceUpdated += OnPriceUpdated;
-        _prices.ProgressChanged += (_, _) => MainThread.BeginInvokeOnMainThread(UpdateStatus);
+        _prices.ProgressChanged += (_, _) => MainThread.BeginInvokeOnMainThread(() =>
+        {
+            UpdateStatus();
+            // Prices arrive one by one; sort again when a run ends so value sorting is right.
+            var running = _prices.IsRunning;
+            if (_pricesWereRunning && !running)
+                ApplyView();
+            _pricesWereRunning = running;
+        });
     }
 
     private static readonly LocationChoice Everything = new("Everything", true, null);
@@ -190,8 +199,28 @@ public partial class InventoryViewModel : ObservableObject
             .ToDictionary(g => g.Key, g => g.ToList());
 
         // Storage units in the inventory are matched to their loaded contents by name.
+        var matched = new HashSet<string>();
         foreach (var card in _all.Where(c => c.Entry.IsStorageUnit && c.Entry.ContainerId is null))
-            card.StorageUnitId = _units.FirstOrDefault(u => (u.Name ?? "") == (card.Entry.CustomName ?? ""))?.Id;
+        {
+            card.StorageUnitId = _units.FirstOrDefault(u => !matched.Contains(u.Id) && (u.Name ?? "") == (card.Entry.CustomName ?? ""))?.Id;
+            if (card.StorageUnitId is not null)
+                matched.Add(card.StorageUnitId);
+        }
+
+        // Storage units read from CS2 that the public inventory didn't list still get a card.
+        foreach (var unit in _units.Where(u => !matched.Contains(u.Id)))
+        {
+            _all.Add(new ItemCard(new InventoryEntry
+            {
+                Key = $"storage|{unit.Id}",
+                MarketHashName = "Storage Unit",
+                Name = "Storage Unit",
+                CustomName = unit.Name,
+                Type = "Storage Unit",
+                Quantity = 1,
+                IsStorageUnit = true
+            }, null, null) { StorageUnitId = unit.Id });
+        }
 
         var selectedId = SelectedLocation?.ContainerId;
         var selectedEverything = SelectedLocation?.Everything ?? true;

@@ -261,7 +261,13 @@ internal sealed class SteamConnection : IAsyncDisposable
             _casketLoaded?.TrySetException(error);
         }));
         _subscriptions.Add(_callbacks.Subscribe<SteamUser.LoggedOnCallback>(cb => _loggedOn?.TrySetResult(cb)));
-        _subscriptions.Add(_callbacks.Subscribe<SteamUser.PlayingSessionStateCallback>(cb => _playingBlocked = cb.PlayingBlocked));
+        _subscriptions.Add(_callbacks.Subscribe<SteamUser.PlayingSessionStateCallback>(cb =>
+        {
+            SteamDiagnostics.Write($"Playing session: blocked={cb.PlayingBlocked}, app={cb.PlayingAppID}");
+            _playingBlocked = cb.PlayingBlocked;
+        }));
+        _subscriptions.Add(_callbacks.Subscribe<SteamUser.LoggedOffCallback>(cb =>
+            SteamDiagnostics.Write($"Logged off by Steam: {cb.Result}")));
         _subscriptions.Add(_callbacks.Subscribe<SteamGameCoordinator.MessageCallback>(OnGcMessage));
     }
 
@@ -361,14 +367,18 @@ internal sealed class SteamConnection : IAsyncDisposable
     /// <summary>Starts CS2 (without a game window) and waits for the Game Coordinator to send the inventory.</summary>
     public async Task<IReadOnlyDictionary<ulong, GcItem>> StartGameCoordinatorAsync(CancellationToken ct)
     {
+        _welcome = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         SetGamesPlayed(Cs2AppId);
 
-        _welcome = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        for (var attempt = 0; attempt < 6 && !_welcome.Task.IsCompleted; attempt++)
+        // Steam needs a moment to start the game session before the Game Coordinator accepts a hello.
+        await Task.Delay(TimeSpan.FromSeconds(2), ct);
+
+        for (var attempt = 0; attempt < 8 && !_welcome.Task.IsCompleted; attempt++)
         {
             if (_playingBlocked)
                 throw new SteamException("CS2 is open on another device. Close it there and try again.");
 
+            SteamDiagnostics.Write($"Sending ClientHello to the CS2 Game Coordinator (attempt {attempt + 1})");
             var hello = new ClientGCMsgProtobuf<CMsgClientHello>((uint)EGCBaseClientMsg.k_EMsgGCClientHello);
             _gc.Send(hello, Cs2AppId);
 
@@ -429,6 +439,7 @@ internal sealed class SteamConnection : IAsyncDisposable
 
     private void OnGcMessage(SteamGameCoordinator.MessageCallback callback)
     {
+        SteamDiagnostics.Write($"GC message {callback.EMsg} (app {callback.AppID}, proto {callback.IsProto})");
         if (callback.AppID != Cs2AppId)
             return;
 
@@ -441,6 +452,9 @@ internal sealed class SteamConnection : IAsyncDisposable
                     foreach (var type in cache.objects.Where(o => o.type_id == SoTypeEconItem))
                         foreach (var data in type.object_data)
                             AddItem(data);
+                lock (_itemsLock)
+                    SteamDiagnostics.Write($"Welcome: {welcome.Body.outofdate_subscribed_caches.Count} caches, {_items.Count} items, " +
+                                           $"{_items.Values.Count(i => i.DefIndex == ItemCatalog.StorageUnitDefIndex)} storage units");
                 _welcome?.TrySetResult();
                 break;
             }
@@ -558,7 +572,10 @@ internal sealed class SteamConnection : IAsyncDisposable
 
     private void SetGamesPlayed(params uint[] appIds)
     {
-        var message = new ClientMsgProtobuf<SteamKit2.Internal.CMsgClientGamesPlayed>(EMsg.ClientGamesPlayed);
+        // The "with data blob" variant is what the current Steam client sends.
+        var message = new ClientMsgProtobuf<SteamKit2.Internal.CMsgClientGamesPlayed>(EMsg.ClientGamesPlayedWithDataBlob);
+        message.Body.client_os_type = (uint)EOSType.Windows10;
+        SteamDiagnostics.Write($"Games played: [{string.Join(",", appIds)}]");
         foreach (var appId in appIds)
             message.Body.games_played.Add(new SteamKit2.Internal.CMsgClientGamesPlayed.GamePlayed { game_id = appId });
         Client.Send(message);
