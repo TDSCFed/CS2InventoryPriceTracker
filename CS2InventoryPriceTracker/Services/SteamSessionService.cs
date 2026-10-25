@@ -2,7 +2,6 @@ using SteamKit2;
 using SteamKit2.Authentication;
 using SteamKit2.GC;
 using SteamKit2.GC.CSGO.Internal;
-using SteamKit2.Internal;
 
 namespace CS2InventoryPriceTracker.Services;
 
@@ -501,9 +500,9 @@ internal sealed class SteamConnection : IAsyncDisposable
 
     private void SetGamesPlayed(params uint[] appIds)
     {
-        var message = new ClientMsgProtobuf<CMsgClientGamesPlayed>(EMsg.ClientGamesPlayed);
+        var message = new ClientMsgProtobuf<SteamKit2.Internal.CMsgClientGamesPlayed>(EMsg.ClientGamesPlayed);
         foreach (var appId in appIds)
-            message.Body.games_played.Add(new CMsgClientGamesPlayed.GamePlayed { game_id = appId });
+            message.Body.games_played.Add(new SteamKit2.Internal.CMsgClientGamesPlayed.GamePlayed { game_id = appId });
         Client.Send(message);
     }
 
