@@ -1,0 +1,99 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: write       # needed to publish releases
+      pull-requests: write  # needed to comment the download link on pull requests
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Install MAUI Android workload
+        run: dotnet workload install maui-android
+
+      - name: Install Android SDK dependencies
+        run: >
+          dotnet build CS2InventoryPriceTracker/CS2InventoryPriceTracker.csproj
+          -t:InstallAndroidDependencies
+          -f net10.0-android
+          -p:AndroidSdkDirectory="$ANDROID_HOME"
+          -p:AcceptAndroidSDKLicenses=True
+
+      # Debug build, signed with the default debug key and with assemblies embedded,
+      # so the APK installs and runs standalone on a phone.
+      - name: Build APK
+        run: >
+          dotnet build CS2InventoryPriceTracker/CS2InventoryPriceTracker.csproj
+          -c Debug
+          -f net10.0-android
+          -p:EmbedAssembliesIntoApk=true
+          -p:AndroidPackageFormat=apk
+          -p:AndroidSdkDirectory="$ANDROID_HOME"
+
+      # archive: false uploads the APK as-is (not wrapped in a zip), so it can be
+      # downloaded from the run page and installed directly.
+      - name: Upload APK
+        uses: actions/upload-artifact@v7
+        with:
+          path: CS2InventoryPriceTracker/bin/Debug/net10.0-android/*-Signed.apk
+          archive: false
+          if-no-files-found: error
+
+      # Builds of main are also published as a release called "latest" (replaced on every build),
+      # so the APK has one fixed, easy download link:
+      # https://github.com/<owner>/<repo>/releases/latest/download/CS2InventoryPriceTracker.apk
+      - name: Publish latest release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp CS2InventoryPriceTracker/bin/Debug/net10.0-android/*-Signed.apk CS2InventoryPriceTracker.apk
+          gh release delete latest --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes || true
+          gh release create latest CS2InventoryPriceTracker.apk \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "Latest build" \
+            --notes "Built from commit ${GITHUB_SHA::7}"
+
+      # Pull request builds are published as a pre-release called "pr-<number>" (replaced on every
+      # push to the PR), and the download link is posted as a comment on the PR.
+      - name: Publish PR build
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          TAG="pr-$PR_NUMBER"
+          FILE="CS2InventoryPriceTracker-pr-$PR_NUMBER.apk"
+          cp CS2InventoryPriceTracker/bin/Debug/net10.0-android/*-Signed.apk "$FILE"
+          gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes || true
+          gh release create "$TAG" "$FILE" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$HEAD_SHA" \
+            --prerelease \
+            --title "Build of PR #$PR_NUMBER" \
+            --notes "Built from commit ${HEAD_SHA::7}"
+          gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --edit-last --create-if-none \
+            --body "APK for this PR (commit ${HEAD_SHA::7}): https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/$FILE"
