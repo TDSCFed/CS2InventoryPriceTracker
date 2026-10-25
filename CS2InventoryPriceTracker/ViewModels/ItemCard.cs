@@ -7,25 +7,43 @@ namespace CS2InventoryPriceTracker.ViewModels;
 /// <summary>An inventory line shown in the Inventory page.</summary>
 public partial class ItemCard : ObservableObject
 {
-    public ItemCard(InventoryEntry entry, PriceEntry? price)
+    public ItemCard(InventoryEntry entry, PriceEntry? price, string? location)
     {
         Entry = entry;
+        Location = location;
         _price = price;
     }
 
     public InventoryEntry Entry { get; }
 
+    /// <summary>Name of the storage unit holding the item, or null for the main inventory.</summary>
+    public string? Location { get; }
+
+    /// <summary>For a storage unit in the main inventory: the id of its loaded contents.</summary>
+    public string? StorageUnitId { get; set; }
+
     public string Title => string.IsNullOrEmpty(Entry.CustomName) ? Entry.Name : $"“{Entry.CustomName}”";
+
+    /// <summary>For a storage unit: "12 items · 34,56 €" once its contents are loaded.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Subtitle))]
+    private string? _storageSummary;
 
     public string Subtitle
     {
         get
         {
             if (Entry.IsStorageUnit)
-                return "Storage unit · contents coming with Steam login";
+                return StorageSummary is null
+                    ? "Storage unit · log in to Steam to see what's inside"
+                    : $"Storage unit · {StorageSummary} · tap to open";
+
+            var text = Entry.Type ?? "";
             if (!string.IsNullOrEmpty(Entry.CustomName))
-                return $"{Entry.Name} · {Entry.Type}";
-            return Entry.Type ?? "";
+                text = string.IsNullOrEmpty(text) ? Entry.Name : $"{Entry.Name} · {text}";
+            if (Location is not null)
+                text = string.IsNullOrEmpty(text) ? $"In {Location}" : $"In {Location} · {text}";
+            return text;
         }
     }
 
@@ -59,6 +77,8 @@ public partial class ItemCard : ObservableObject
     {
         get
         {
+            if (Entry.IsStorageUnit)
+                return "";
             if (!Entry.Marketable)
                 return "Not marketable";
             if (Price is null)

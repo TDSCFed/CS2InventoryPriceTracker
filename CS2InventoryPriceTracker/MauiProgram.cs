@@ -30,6 +30,9 @@ public static class MauiProgram
         builder.Services.AddSingleton<SteamInventoryService>();
         builder.Services.AddSingleton<IPriceProvider, SteamMarketPriceProvider>();
         builder.Services.AddSingleton<PriceUpdater>();
+        builder.Services.AddSingleton<ItemCatalog>();
+        builder.Services.AddSingleton<SteamSessionService>();
+        builder.Services.AddSingleton<StorageUnitService>();
 
         // View models
         builder.Services.AddTransient<InventoryViewModel>();

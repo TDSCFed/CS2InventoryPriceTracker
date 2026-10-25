@@ -40,6 +40,12 @@ jobs:
           -p:AndroidSdkDirectory="$ANDROID_HOME"
           -p:AcceptAndroidSDKLicenses=True
 
+      # Refreshes the item names used for storage unit contents (new cases, skins, stickers...).
+      # If the source is unreachable, the copy committed in the repository is used.
+      - name: Update item data
+        continue-on-error: true
+        run: python3 tools/generate_item_data.py
+
       # Debug build, signed with the default debug key and with assemblies embedded,
       # so the APK installs and runs standalone on a phone.
       - name: Build APK

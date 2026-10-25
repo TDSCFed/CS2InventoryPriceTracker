@@ -23,6 +23,7 @@ public class LocalStore
                 var db = new SQLiteAsyncConnection(path);
                 await db.CreateTableAsync<InventoryEntry>();
                 await db.CreateTableAsync<PriceEntry>();
+                await db.CreateTableAsync<StorageUnit>();
                 _db = db;
             }
             return _db;
@@ -52,11 +53,35 @@ public class LocalStore
         });
     }
 
-    /// <summary>Removes every stored item (used when switching to another Steam account).</summary>
+    /// <summary>Replaces all storage units and the items inside them.</summary>
+    public async Task ReplaceStorageUnitsAsync(IEnumerable<StorageUnit> units, IEnumerable<InventoryEntry> contents)
+    {
+        var db = await GetDbAsync();
+        var unitList = units.ToList();
+        var contentList = contents.ToList();
+        await db.RunInTransactionAsync(conn =>
+        {
+            conn.Execute("DELETE FROM inventory_items WHERE ContainerId IS NOT NULL");
+            conn.DeleteAll<StorageUnit>();
+            foreach (var unit in unitList)
+                conn.InsertOrReplace(unit);
+            foreach (var entry in contentList)
+                conn.InsertOrReplace(entry);
+        });
+    }
+
+    public async Task<List<StorageUnit>> GetStorageUnitsAsync()
+    {
+        var db = await GetDbAsync();
+        return await db.Table<StorageUnit>().ToListAsync();
+    }
+
+    /// <summary>Removes every stored item and storage unit (used when switching to another Steam account).</summary>
     public async Task ClearInventoryAsync()
     {
         var db = await GetDbAsync();
         await db.DeleteAllAsync<InventoryEntry>();
+        await db.DeleteAllAsync<StorageUnit>();
     }
 
     /// <summary>All cached prices of one market, by market hash name.</summary>

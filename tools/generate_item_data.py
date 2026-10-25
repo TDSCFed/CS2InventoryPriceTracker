@@ -1,0 +1,101 @@
+"""
+Builds CS2InventoryPriceTracker/Resources/Raw/items.json: a compact lookup from CS2 game data ids
+(item definition index, paint kit, sticker kit, music kit, charm, graffiti tint) to item names, rarity colors and icons.
+
+Items inside storage units come from the CS2 Game Coordinator with only these ids, so the app needs this table
+to show their names and look up their market prices.
+
+Source: https://github.com/ByMykel/CSGO-API (English files).
+
+Usage:
+    python tools/generate_item_data.py                 # downloads the source files
+    python tools/generate_item_data.py <folder>        # uses already downloaded *.json files from <folder>
+"""
+
+import json
+import os
+import sys
+import urllib.request
+
+SOURCE = "https://raw.githubusercontent.com/ByMykel/CSGO-API/main/public/api/en/{}.json"
+OUTPUT = os.path.join(os.path.dirname(__file__), "..", "CS2InventoryPriceTracker", "Resources", "Raw", "items.json")
+STEAM_IMAGE_PREFIX = "https://community.akamai.steamstatic.com/economy/image/"
+
+
+def load(name, folder):
+    if folder:
+        with open(os.path.join(folder, name + ".json"), encoding="utf-8") as f:
+            return json.load(f)
+    with urllib.request.urlopen(SOURCE.format(name), timeout=120) as response:
+        return json.load(response)
+
+
+def image(url):
+    """Steam economy images are stored without their common prefix to keep the file small."""
+    if not url:
+        return ""
+    return url[len(STEAM_IMAGE_PREFIX):] if url.startswith(STEAM_IMAGE_PREFIX) else url
+
+
+def color(item):
+    rarity = item.get("rarity") or {}
+    return (rarity.get("color") or "").lstrip("#")
+
+
+def strip_star(name):
+    return name[2:] if name.startswith("★ ") else name
+
+
+def main():
+    folder = sys.argv[1] if len(sys.argv) > 1 else None
+    out = {"version": 1, "defs": {}, "skins": {}, "stickers": {}, "patches": {}, "graffiti": {}, "music": {}, "charms": {}}
+
+    # Plain items by definition index. Kind: k = knife, g = gloves (both get the ★ prefix), w = weapon.
+    for w in load("base_weapons", folder):
+        category = (w.get("category") or {}).get("name")
+        kind = "k" if category == "Knives" else "g" if category == "Gloves" else "w"
+        out["defs"][str(w["def_index"])] = [w["name"], "", image(w.get("image")), kind]
+
+    for name in ("crates", "keys", "collectibles", "agents", "tools"):
+        for item in load(name, folder):
+            if item.get("def_index") is None:
+                continue
+            # m = sold on the market, i = cannot be sold (most coins, pins, tools...).
+            marketable = bool(item.get("market_hash_name")) and item.get("marketable", True)
+            display = item.get("market_hash_name") or item["name"]
+            out["defs"].setdefault(str(item["def_index"]), [display, color(item), image(item.get("image")), "m" if marketable else "i"])
+
+    # Weapon skins by "<definition index>_<paint kit>". Vanilla knives have no paint kit and use "_0".
+    for skin in load("skins", folder):
+        weapon_id = (skin.get("weapon") or {}).get("weapon_id")
+        if weapon_id is None:
+            continue
+        paint = skin.get("paint_index") or "0"
+        out["skins"][f"{weapon_id}_{paint}"] = [strip_star(skin["name"]), color(skin), image(skin.get("image"))]
+
+    for name, key in (("stickers", "stickers"), ("patches", "patches"), ("keychains", "charms")):
+        for item in load(name, folder):
+            out[key][str(item["def_index"])] = [item.get("market_hash_name") or item["name"], color(item), image(item.get("image"))]
+
+    # Graffiti by "<sticker kit>" or "<sticker kit>_<tint id>" (ids look like "graffiti-1697_3").
+    for item in load("graffiti", folder):
+        suffix = item["id"].split("-", 1)[-1]
+        out["graffiti"][suffix] = [item.get("market_hash_name") or item["name"], color(item), image(item.get("image"))]
+
+    # Music kits by id; the StatTrak variants (ids ending in "_st") are built by the app from the quality.
+    for item in load("music_kits", folder):
+        kit_id = item["id"].split("-", 1)[-1]
+        if kit_id.endswith("_st"):
+            continue
+        out["music"][kit_id] = [item.get("market_hash_name") or item["name"], color(item), image(item.get("image"))]
+
+    os.makedirs(os.path.dirname(OUTPUT), exist_ok=True)
+    with open(OUTPUT, "w", encoding="utf-8") as f:
+        json.dump(out, f, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+
+    counts = ", ".join(f"{k}: {len(v)}" for k, v in out.items() if isinstance(v, dict))
+    print(f"Wrote {os.path.normpath(OUTPUT)} ({os.path.getsize(OUTPUT) // 1024} KB; {counts})")
+
+
+if __name__ == "__main__":
+    main()
