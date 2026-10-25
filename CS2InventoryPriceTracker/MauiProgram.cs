@@ -1,0 +1,48 @@
+using System.Net;
+using Microsoft.Extensions.Logging;
+using CS2InventoryPriceTracker.Services;
+using CS2InventoryPriceTracker.ViewModels;
+using CS2InventoryPriceTracker.Views;
+
+namespace CS2InventoryPriceTracker;
+
+public static class MauiProgram
+{
+    public static MauiApp CreateMauiApp()
+    {
+        var builder = MauiApp.CreateBuilder();
+        builder.UseMauiApp<App>();
+
+        // One HttpClient for every Steam request. Steam answers some endpoints with gzip.
+        var http = new HttpClient(new HttpClientHandler
+        {
+            AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
+        })
+        {
+            Timeout = TimeSpan.FromSeconds(30)
+        };
+        http.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Linux; Android 14) CS2InventoryPriceTracker/1.0");
+        builder.Services.AddSingleton(http);
+
+        // Services
+        builder.Services.AddSingleton<SettingsService>();
+        builder.Services.AddSingleton<LocalStore>();
+        builder.Services.AddSingleton<SteamInventoryService>();
+        builder.Services.AddSingleton<IPriceProvider, SteamMarketPriceProvider>();
+        builder.Services.AddSingleton<PriceUpdater>();
+
+        // View models
+        builder.Services.AddTransient<InventoryViewModel>();
+        builder.Services.AddTransient<SettingsViewModel>();
+
+        // Pages
+        builder.Services.AddTransient<InventoryPage>();
+        builder.Services.AddTransient<SettingsPage>();
+
+#if DEBUG
+        builder.Logging.AddDebug();
+#endif
+
+        return builder.Build();
+    }
+}

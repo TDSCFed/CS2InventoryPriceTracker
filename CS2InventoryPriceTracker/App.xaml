@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<Application xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="CS2InventoryPriceTracker.App">
+    <Application.Resources>
+        <ResourceDictionary>
+
+            <Color x:Key="Primary">#F08A1C</Color>
+            <Color x:Key="PriceGreen">#4CC38A</Color>
+
+            <!-- Page and text defaults (light/dark aware) -->
+            <Style TargetType="ContentPage" ApplyToDerivedTypes="True">
+                <Setter Property="BackgroundColor" Value="{AppThemeBinding Light=White, Dark=#121318}" />
+            </Style>
+
+            <Style TargetType="Label">
+                <Setter Property="TextColor" Value="{AppThemeBinding Light=#111111, Dark=#F2F2F2}" />
+            </Style>
+
+            <Style TargetType="Shell" ApplyToDerivedTypes="True">
+                <Setter Property="Shell.BackgroundColor" Value="{AppThemeBinding Light=White, Dark=#1B1D24}" />
+                <Setter Property="Shell.TitleColor" Value="{AppThemeBinding Light=#111111, Dark=#F2F2F2}" />
+                <Setter Property="Shell.ForegroundColor" Value="{AppThemeBinding Light=#111111, Dark=#F2F2F2}" />
+                <Setter Property="Shell.TabBarBackgroundColor" Value="{AppThemeBinding Light=White, Dark=#1B1D24}" />
+                <Setter Property="Shell.TabBarTitleColor" Value="{StaticResource Primary}" />
+                <Setter Property="Shell.TabBarForegroundColor" Value="{StaticResource Primary}" />
+                <Setter Property="Shell.TabBarUnselectedColor" Value="#8E8E93" />
+            </Style>
+
+            <!-- Card background used by list items -->
+            <Style x:Key="Card" TargetType="Border">
+                <Setter Property="StrokeShape" Value="RoundRectangle 10" />
+                <Setter Property="Stroke" Value="Transparent" />
+                <Setter Property="Padding" Value="8" />
+                <Setter Property="BackgroundColor" Value="{AppThemeBinding Light=#F2F2F7, Dark=#23262E}" />
+            </Style>
+
+            <Style x:Key="PrimaryButton" TargetType="Button">
+                <Setter Property="CornerRadius" Value="8" />
+                <Setter Property="BackgroundColor" Value="{StaticResource Primary}" />
+                <Setter Property="TextColor" Value="White" />
+            </Style>
+
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

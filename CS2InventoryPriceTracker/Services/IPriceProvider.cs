@@ -1,0 +1,25 @@
+using CS2InventoryPriceTracker.Models;
+
+namespace CS2InventoryPriceTracker.Services;
+
+/// <summary>
+/// A market the app can read prices from (Steam Market today; Skinport, CSFloat... later).
+/// Prices are always in euros.
+/// </summary>
+public interface IPriceProvider
+{
+    /// <summary>Short id stored with each cached price, e.g. "steam".</summary>
+    string Source { get; }
+
+    /// <summary>Name shown to the user, e.g. "Steam Market".</summary>
+    string DisplayName { get; }
+
+    /// <summary>How long a cached price is considered fresh.</summary>
+    TimeSpan MaxAge { get; }
+
+    /// <summary>
+    /// Fetches prices for the given items and reports each one through <paramref name="onQuote"/> as soon as it is known,
+    /// so slow markets still show progress. Markets with a bulk endpoint can report everything at once.
+    /// </summary>
+    Task FetchAsync(IReadOnlyList<string> marketHashNames, Func<PriceQuote, Task> onQuote, CancellationToken ct);
+}

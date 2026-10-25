@@ -1,0 +1,17 @@
+name: Clean up PR build
+
+# Removes the pre-release created for a pull request once the PR is merged or closed.
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Delete PR release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release delete "pr-${{ github.event.pull_request.number }}" --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes || true

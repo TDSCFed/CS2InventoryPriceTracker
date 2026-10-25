@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="456" height="456" viewBox="0 0 456 456"><defs>
+<linearGradient id="lid" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFB547"/><stop offset="1" stop-color="#F08A1C"/></linearGradient>
+<linearGradient id="box" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#E07A12"/><stop offset="1" stop-color="#B85C08"/></linearGradient>
+<radialGradient id="coin" cx=".35" cy=".3" r=".8"><stop offset="0" stop-color="#FFF6C9"/><stop offset=".55" stop-color="#FFD54A"/><stop offset="1" stop-color="#E0A800"/></radialGradient></defs>
+<rect x="112" y="196" width="232" height="148" rx="14" fill="url(#box)"/>
+<rect x="100" y="164" width="256" height="48" rx="12" fill="url(#lid)"/>
+<rect x="208" y="164" width="40" height="180" fill="#000" fill-opacity=".18"/>
+<rect x="198" y="200" width="60" height="34" rx="8" fill="#2A2F3A"/>
+<circle cx="318" cy="306" r="62" fill="url(#coin)" stroke="#B88600" stroke-width="6"/>
+<path d="M346 280 A34 34 0 1 0 346 332" fill="none" stroke="#8A5A00" stroke-width="12" stroke-linecap="round"/><path d="M282 296 H322 M282 316 H322" stroke="#8A5A00" stroke-width="10" stroke-linecap="round"/></svg>
