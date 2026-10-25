@@ -267,12 +267,12 @@ internal sealed class SteamConnection : IAsyncDisposable
 
     public SteamClient Client { get; }
 
-    /// <summary>Connects to Steam, trying up to three servers.</summary>
+    /// <summary>Connects to Steam, trying up to five servers (some only listen on ports that mobile networks block).</summary>
     public static async Task<SteamConnection> OpenAsync(CancellationToken ct)
     {
         SteamDiagnostics.Start();
         Exception? lastError = null;
-        for (var attempt = 1; attempt <= 3; attempt++)
+        for (var attempt = 1; attempt <= 5; attempt++)
         {
             SteamDiagnostics.Write($"Connecting (attempt {attempt})");
             var connection = new SteamConnection();
