@@ -217,10 +217,22 @@ internal sealed class SteamConnection : IAsyncDisposable
     /// <summary>
     /// WebSocket connections use port 443, which works on mobile data and most Wi-Fi networks
     /// (the TCP ports Steam also offers are often blocked). Mobile networks also need more than the default 5 s.
+    /// On Android a plain <see cref="HttpClient"/> uses the native Android handler, which cannot open WebSockets,
+    /// so every SteamKit2 client is built on the managed <see cref="SocketsHttpHandler"/> instead.
     /// </summary>
     private static readonly SteamConfiguration Configuration = SteamConfiguration.Create(builder => builder
         .WithProtocolTypes(ProtocolTypes.WebSocket)
-        .WithConnectionTimeout(TimeSpan.FromSeconds(20)));
+        .WithConnectionTimeout(TimeSpan.FromSeconds(20))
+        .WithHttpClientFactory(_ =>
+        {
+            var client = new HttpClient(new SocketsHttpHandler
+            {
+                AutomaticDecompression = System.Net.DecompressionMethods.All,
+                ConnectTimeout = TimeSpan.FromSeconds(20)
+            });
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("CS2InventoryPriceTracker/1.0");
+            return client;
+        }));
 
     /// <summary>What the connection is doing, used to explain a lost connection.</summary>
     public string Stage { get; set; } = "connecting";
