@@ -53,6 +53,8 @@ public class SteamSessionService(SettingsService settings)
         AuthPollResult result;
         try
         {
+            connection.Stage = "checking the password";
+            SteamDiagnostics.Write("Starting credentials auth session");
             var session = await connection.Client.Authentication.BeginAuthSessionViaCredentialsAsync(new AuthSessionDetails
             {
                 Username = accountName.Trim(),
@@ -62,10 +64,14 @@ public class SteamSessionService(SettingsService settings)
                 DeviceFriendlyName = "CS2 Inventory (Android)",
                 Authenticator = authenticator
             });
+            connection.Stage = "waiting for Steam Guard";
+            SteamDiagnostics.Write("Auth session started, polling for result");
             result = await session.PollingWaitForResultAsync(ct);
+            SteamDiagnostics.Write("Auth session approved");
         }
         catch (AuthenticationException e)
         {
+            SteamDiagnostics.Write($"Authentication failed: {e.Result}");
             throw new SteamException(e.Result switch
             {
                 EResult.InvalidPassword => "Wrong account name or password.",
@@ -77,9 +83,16 @@ public class SteamSessionService(SettingsService settings)
         }
         catch (TaskCanceledException) when (!ct.IsCancellationRequested)
         {
+            SteamDiagnostics.Write($"Timed out while {connection.Stage}");
             throw new SteamException("Steam didn't answer in time. Try again.");
         }
+        catch (Exception e) when (e is not SteamException and not OperationCanceledException)
+        {
+            SteamDiagnostics.Write($"Error while {connection.Stage}: {e.GetType().Name}: {e.Message}");
+            throw new SteamException($"Steam login failed while {connection.Stage} ({e.GetType().Name}). Try again.", e);
+        }
 
+        connection.Stage = "logging on";
         var steamId = await connection.LogOnAsync(result.AccountName, result.RefreshToken, ct);
 
         await SecureStorage.Default.SetAsync(RefreshTokenKey, result.RefreshToken);
@@ -120,6 +133,7 @@ public class SteamSessionService(SettingsService settings)
 
         progress?.Report("Connecting to Steam…");
         await using var connection = await SteamConnection.OpenAsync(ct);
+        connection.Stage = "logging on";
         try
         {
             await connection.LogOnAsync(accountName, refreshToken, ct);
@@ -131,6 +145,7 @@ public class SteamSessionService(SettingsService settings)
         }
 
         progress?.Report("Connecting to CS2…");
+        connection.Stage = "connecting to CS2";
         var inventory = await connection.StartGameCoordinatorAsync(ct);
 
         var caskets = inventory.Values
@@ -143,6 +158,7 @@ public class SteamSessionService(SettingsService settings)
             progress?.Report($"Opening storage unit {i + 1} of {caskets.Count}: {casket.CustomName ?? "Storage Unit"}…");
             if (casket.CasketItemCount is null or 0)
                 continue;
+            connection.Stage = "opening storage units";
             await connection.LoadCasketAsync(casket.Id, ct);
         }
 
@@ -198,17 +214,35 @@ internal sealed class SteamConnection : IAsyncDisposable
     private readonly Dictionary<ulong, GcItem> _items = new();
     private readonly object _itemsLock = new();
 
+    /// <summary>
+    /// WebSocket connections use port 443, which works on mobile data and most Wi-Fi networks
+    /// (the TCP ports Steam also offers are often blocked). Mobile networks also need more than the default 5 s.
+    /// </summary>
+    private static readonly SteamConfiguration Configuration = SteamConfiguration.Create(builder => builder
+        .WithProtocolTypes(ProtocolTypes.WebSocket)
+        .WithConnectionTimeout(TimeSpan.FromSeconds(20)));
+
+    /// <summary>What the connection is doing, used to explain a lost connection.</summary>
+    public string Stage { get; set; } = "connecting";
+
     private SteamConnection()
     {
-        Client = new SteamClient();
+        Client = new SteamClient(Configuration);
         _callbacks = new CallbackManager(Client);
         _user = Client.GetHandler<SteamUser>()!;
         _gc = Client.GetHandler<SteamGameCoordinator>()!;
 
-        _subscriptions.Add(_callbacks.Subscribe<SteamClient.ConnectedCallback>(_ => _connected.TrySetResult()));
-        _subscriptions.Add(_callbacks.Subscribe<SteamClient.DisconnectedCallback>(_ =>
+        _subscriptions.Add(_callbacks.Subscribe<SteamClient.ConnectedCallback>(_ =>
         {
-            var error = new SteamException("Lost the connection to Steam. Try again.");
+            SteamDiagnostics.Write("Connected to Steam");
+            _connected.TrySetResult();
+        }));
+        _subscriptions.Add(_callbacks.Subscribe<SteamClient.DisconnectedCallback>(cb =>
+        {
+            SteamDiagnostics.Write($"Disconnected while {Stage} (user initiated: {cb.UserInitiated})");
+            var error = new SteamException(_connected.Task.IsCompletedSuccessfully
+                ? $"Lost the connection to Steam while {Stage}. Try again."
+                : "Couldn't connect to Steam. Check your internet connection and try again.");
             _connected.TrySetException(error);
             _loggedOn?.TrySetException(error);
             _welcome?.TrySetException(error);
@@ -221,26 +255,37 @@ internal sealed class SteamConnection : IAsyncDisposable
 
     public SteamClient Client { get; }
 
+    /// <summary>Connects to Steam, trying up to three servers.</summary>
     public static async Task<SteamConnection> OpenAsync(CancellationToken ct)
     {
-        var connection = new SteamConnection();
-        _ = Task.Run(connection.RunCallbacksAsync);
-        connection.Client.Connect();
-        try
+        SteamDiagnostics.Start();
+        Exception? lastError = null;
+        for (var attempt = 1; attempt <= 3; attempt++)
         {
-            await connection._connected.Task.WaitAsync(Timeout, ct);
-            return connection;
+            SteamDiagnostics.Write($"Connecting (attempt {attempt})");
+            var connection = new SteamConnection();
+            _ = Task.Run(connection.RunCallbacksAsync);
+            try
+            {
+                connection.Client.Connect();
+                await connection._connected.Task.WaitAsync(Timeout, ct);
+                return connection;
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                await connection.DisposeAsync();
+                throw;
+            }
+            catch (Exception e)
+            {
+                SteamDiagnostics.Write($"Connection attempt {attempt} failed: {e.GetType().Name}: {e.Message}");
+                lastError = e;
+                await connection.DisposeAsync();
+            }
         }
-        catch (TimeoutException)
-        {
-            await connection.DisposeAsync();
-            throw new SteamException("Couldn't connect to Steam. Check your internet connection.");
-        }
-        catch
-        {
-            await connection.DisposeAsync();
-            throw;
-        }
+
+        throw lastError as SteamException
+              ?? new SteamException("Couldn't connect to Steam. Check your internet connection and try again.", lastError);
     }
 
     private async Task RunCallbacksAsync()
@@ -286,6 +331,7 @@ internal sealed class SteamConnection : IAsyncDisposable
             throw new SteamException("Steam didn't answer the login. Try again.");
         }
 
+        SteamDiagnostics.Write($"Logon result: {result.Result} / {result.ExtendedResult}");
         switch (result.Result)
         {
             case EResult.OK:

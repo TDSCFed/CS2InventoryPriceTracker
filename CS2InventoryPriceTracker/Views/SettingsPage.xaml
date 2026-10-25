@@ -47,6 +47,7 @@
                 <Button Text="Log in to Steam" Style="{StaticResource PrimaryButton}" Command="{Binding LoginCommand}" />
             </VerticalStackLayout>
             <Label Text="{Binding LoginMessage}" FontSize="13" />
+            <Button Text="Copy Steam log" IsVisible="{Binding CanCopyLog}" Command="{Binding CopyLogCommand}" />
 
             <BoxView HeightRequest="1" Opacity="0.15" Color="Gray" Margin="0,8" />
 

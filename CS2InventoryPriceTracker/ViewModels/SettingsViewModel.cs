@@ -66,6 +66,10 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private string? _loginMessage;
 
+    /// <summary>True once something was logged while talking to Steam.</summary>
+    [ObservableProperty]
+    private bool _canCopyLog;
+
     public void Load()
     {
         SteamId = _settings.SteamId;
@@ -73,6 +77,7 @@ public partial class SettingsViewModel : ObservableObject
         AvatarUrl = _settings.AvatarUrl;
         if (string.IsNullOrEmpty(ProfileInput))
             ProfileInput = SteamId ?? "";
+        CanCopyLog = SteamDiagnostics.HasLines;
         _ = LoadLoginStateAsync();
     }
 
@@ -165,14 +170,24 @@ public partial class SettingsViewModel : ObservableObject
         {
             LoginMessage = e.Message;
         }
-        catch (Exception)
+        catch (Exception e)
         {
+            SteamDiagnostics.Write($"Login error: {e}");
             LoginMessage = "Couldn't log in to Steam. Check your internet connection and try again.";
         }
         finally
         {
             IsBusy = false;
+            CanCopyLog = SteamDiagnostics.HasLines;
         }
+    }
+
+    /// <summary>Copies the Steam connection log, to share it when something fails.</summary>
+    [RelayCommand]
+    private async Task CopyLogAsync()
+    {
+        await Clipboard.Default.SetTextAsync(SteamDiagnostics.GetText());
+        LoginMessage = "Steam log copied. Paste it in a message to share it.";
     }
 
     [RelayCommand]

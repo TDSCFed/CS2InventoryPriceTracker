@@ -277,8 +277,9 @@ public partial class InventoryViewModel : ObservableObject
             StorageStatusText = null;
             ErrorText = e.Message;
         }
-        catch (Exception)
+        catch (Exception e)
         {
+            SteamDiagnostics.Write($"Storage unit error: {e}");
             StorageStatusText = null;
             ErrorText = "Couldn't read the storage units. Try again later.";
         }
