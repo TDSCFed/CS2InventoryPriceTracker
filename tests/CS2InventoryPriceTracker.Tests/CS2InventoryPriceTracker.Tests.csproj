@@ -25,6 +25,10 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<Using Include="Xunit" />
+	</ItemGroup>
+
+	<ItemGroup>
 		<Compile Include="..\..\CS2InventoryPriceTracker\Models\InventoryModels.cs" Link="App\Models\InventoryModels.cs" />
 		<Compile Include="..\..\CS2InventoryPriceTracker\Services\PriceSources.cs" Link="App\Services\PriceSources.cs" />
 		<Compile Include="..\..\CS2InventoryPriceTracker\Services\IPriceProvider.cs" Link="App\Services\IPriceProvider.cs" />
