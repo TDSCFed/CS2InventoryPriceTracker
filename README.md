@@ -15,6 +15,8 @@ Android app (.NET MAUI) to see a Counter-Strike 2 Steam inventory and the curren
 - History tab: value of the whole account or of one storage unit over time (7/30/90 days or all), on any market
 - Item page: price on every market with links to them, price history, and for each copy the float, pattern,
   stickers and StatTrak kills (from CS2, with the Steam login)
+- Compare markets (Inventory menu): items whose price differs most between markets, by € or %, optionally with
+  Steam at what the seller receives after its 15% fee
 - Inventory and prices are kept on the phone, so the app opens instantly and works offline
 
 ## Download

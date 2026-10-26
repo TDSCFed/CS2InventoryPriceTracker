@@ -6,6 +6,7 @@
              Title="Inventory">
 
     <ContentPage.ToolbarItems>
+        <ToolbarItem Text="Compare markets" Order="Secondary" Command="{Binding OpenMarketCompareCommand}" />
         <ToolbarItem Text="Update prices" Order="Secondary" Command="{Binding RefreshPricesCommand}" />
     </ContentPage.ToolbarItems>
 
