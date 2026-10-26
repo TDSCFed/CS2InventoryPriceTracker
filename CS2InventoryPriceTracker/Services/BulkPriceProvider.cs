@@ -22,7 +22,7 @@ public abstract class BulkPriceProvider : IPriceProvider
     public TimeSpan TimePerItem => TimeSpan.Zero;
 
     /// <summary>Downloads the full price list, by market hash name.</summary>
-    protected abstract Task<Dictionary<string, PriceQuote>> DownloadAsync(CancellationToken ct);
+    protected internal abstract Task<Dictionary<string, PriceQuote>> DownloadAsync(CancellationToken ct);
 
     public async Task FetchAsync(IReadOnlyList<string> marketHashNames, Func<PriceQuote, Task> onQuote, CancellationToken ct)
     {
@@ -61,7 +61,7 @@ public abstract class BulkPriceProvider : IPriceProvider
     }
 
     /// <summary>Reads a price that may be sent as a number or as a string ("1.23").</summary>
-    protected static double? ReadPrice(JsonElement element, string property)
+    internal static double? ReadPrice(JsonElement element, string property)
     {
         if (!element.TryGetProperty(property, out var value))
             return null;
@@ -75,7 +75,7 @@ public abstract class BulkPriceProvider : IPriceProvider
         return result is > 0 ? result : null;
     }
 
-    protected static int? ReadInt(JsonElement element, string property)
+    internal static int? ReadInt(JsonElement element, string property)
     {
         if (!element.TryGetProperty(property, out var value))
             return null;
@@ -100,7 +100,7 @@ public class SkinportPriceProvider : BulkPriceProvider
     public override string Source => PriceSources.Skinport;
     public override string DisplayName => "Skinport";
 
-    protected override async Task<Dictionary<string, PriceQuote>> DownloadAsync(CancellationToken ct)
+    protected internal override async Task<Dictionary<string, PriceQuote>> DownloadAsync(CancellationToken ct)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, Url);
         request.Headers.AcceptEncoding.ParseAdd("br");
@@ -109,9 +109,17 @@ public class SkinportPriceProvider : BulkPriceProvider
 
         await using var stream = await response.Content.ReadAsStreamAsync(ct);
         using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: ct);
+        return Parse(doc.RootElement);
+    }
+
+    /// <summary>Reads Skinport's answer: an array of items with market_hash_name, min_price, median_price, quantity.</summary>
+    internal static Dictionary<string, PriceQuote> Parse(JsonElement root)
+    {
+        if (root.ValueKind != JsonValueKind.Array)
+            throw new InvalidDataException("Unexpected answer from Skinport.");
 
         var prices = new Dictionary<string, PriceQuote>(StringComparer.Ordinal);
-        foreach (var item in doc.RootElement.EnumerateArray())
+        foreach (var item in root.EnumerateArray())
         {
             if (!item.TryGetProperty("market_hash_name", out var nameElement) || nameElement.GetString() is not { } name)
                 continue;
@@ -131,16 +139,21 @@ public class CsgoMarketPriceProvider : BulkPriceProvider
     public override string Source => PriceSources.CsgoMarket;
     public override string DisplayName => "Market.CSGO";
 
-    protected override async Task<Dictionary<string, PriceQuote>> DownloadAsync(CancellationToken ct)
+    protected internal override async Task<Dictionary<string, PriceQuote>> DownloadAsync(CancellationToken ct)
     {
         using var response = await Http.GetAsync(Url, HttpCompletionOption.ResponseHeadersRead, ct);
         response.EnsureSuccessStatusCode();
 
         await using var stream = await response.Content.ReadAsStreamAsync(ct);
         using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: ct);
+        return Parse(doc.RootElement);
+    }
 
+    /// <summary>Reads Market.CSGO's answer: { "items": [ { market_hash_name, price, volume } ] }.</summary>
+    internal static Dictionary<string, PriceQuote> Parse(JsonElement root)
+    {
         var prices = new Dictionary<string, PriceQuote>(StringComparer.Ordinal);
-        if (!doc.RootElement.TryGetProperty("items", out var items) || items.ValueKind != JsonValueKind.Array)
+        if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("items", out var items) || items.ValueKind != JsonValueKind.Array)
             throw new InvalidDataException("Unexpected answer from Market.CSGO.");
 
         foreach (var item in items.EnumerateArray())

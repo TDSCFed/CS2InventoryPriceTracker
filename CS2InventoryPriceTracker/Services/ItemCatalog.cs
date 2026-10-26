@@ -46,6 +46,17 @@ public class ItemCatalog
     private const uint QualitySouvenir = 12;
 
     private readonly SemaphoreSlim _loadLock = new(1, 1);
+    private readonly Func<Task<Stream>> _openData;
+
+#if !TESTS
+    /// <summary>Reads items.json bundled with the app.</summary>
+    public ItemCatalog() : this(() => FileSystem.OpenAppPackageFileAsync("items.json"))
+    {
+    }
+#endif
+
+    /// <summary>Reads the item table from <paramref name="openData"/> (used by the tests).</summary>
+    internal ItemCatalog(Func<Task<Stream>> openData) => _openData = openData;
     private Tables? _tables;
 
     private sealed record Tables(
@@ -68,7 +79,7 @@ public class ItemCatalog
         {
             if (_tables is null)
             {
-                await using var stream = await FileSystem.OpenAppPackageFileAsync("items.json");
+                await using var stream = await _openData();
                 var data = await JsonSerializer.DeserializeAsync<Dictionary<string, JsonElement>>(stream)
                            ?? throw new InvalidDataException("items.json is empty.");
 

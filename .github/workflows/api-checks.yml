@@ -1,0 +1,33 @@
+name: API checks
+
+# Runs the tests that call the real Steam, Skinport and Market.CSGO APIs, to notice when one of them changes its
+# format or the item names stop matching the markets. GitHub emails the repository owner when a scheduled run fails.
+on:
+  schedule:
+    - cron: "17 6 * * 1"   # every Monday at 06:17 UTC
+  workflow_dispatch:
+
+jobs:
+  live-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      # Test the item names the next build would ship.
+      - name: Update item data
+        continue-on-error: true
+        run: python3 tools/generate_item_data.py
+
+      - name: Run live API tests
+        run: >
+          dotnet test tests/CS2InventoryPriceTracker.Tests/CS2InventoryPriceTracker.Tests.csproj
+          --filter "Category=Live"
+          --logger "console;verbosity=normal"
+          --logger "GitHubActions"

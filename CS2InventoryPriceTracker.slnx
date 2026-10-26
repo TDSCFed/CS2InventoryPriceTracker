@@ -1,3 +1,4 @@
 <Solution>
   <Project Path="CS2InventoryPriceTracker/CS2InventoryPriceTracker.csproj" />
+  <Project Path="tests/CS2InventoryPriceTracker.Tests/CS2InventoryPriceTracker.Tests.csproj" />
 </Solution>
