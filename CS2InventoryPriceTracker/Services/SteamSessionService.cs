@@ -8,6 +8,9 @@ namespace CS2InventoryPriceTracker.Services;
 /// <summary>The contents of one storage unit, as read from the CS2 Game Coordinator.</summary>
 public record CasketContents(GcItem Casket, IReadOnlyList<GcItem> Items);
 
+/// <summary>Everything read from the CS2 Game Coordinator: storage units with their contents, and the main inventory.</summary>
+public record GameCoordinatorInventory(IReadOnlyList<CasketContents> Caskets, IReadOnlyList<GcItem> InventoryItems);
+
 /// <summary>
 /// Steam login and the CS2 Game Coordinator, used to read what is inside storage units
 /// (the public Steam inventory does not show it).
@@ -153,7 +156,7 @@ public class SteamSessionService(SettingsService settings, ItemCatalog catalog, 
     /// Connects to the CS2 Game Coordinator with the saved login and reads every storage unit.
     /// Takes from a few seconds to about a minute, depending on how many storage units there are.
     /// </summary>
-    public async Task<List<CasketContents>> LoadStorageUnitsAsync(IProgress<string>? progress = null, CancellationToken ct = default)
+    public async Task<GameCoordinatorInventory> LoadStorageUnitsAsync(IProgress<string>? progress = null, CancellationToken ct = default)
     {
         string? refreshToken = null;
         try
@@ -203,9 +206,9 @@ public class SteamSessionService(SettingsService settings, ItemCatalog catalog, 
 
         // Storage unit contents arrive as extra items that point to their storage unit.
         var all = connection.Items.Values.ToList();
-        return caskets
-            .Select(c => new CasketContents(c, all.Where(i => i.CasketId == c.Id).ToList()))
-            .ToList();
+        return new GameCoordinatorInventory(
+            caskets.Select(c => new CasketContents(c, all.Where(i => i.CasketId == c.Id).ToList())).ToList(),
+            all.Where(i => i.CasketId is null).ToList());
     }
 }
 
@@ -225,6 +228,8 @@ internal sealed class SteamConnection : IAsyncDisposable
     private const uint AttrPaintWear = 8;
     private const uint AttrKillEater = 80;
     private const uint AttrStickerSlot0 = 113;
+    private const uint AttrStickerSlot5 = 133;
+    private const uint AttrPaintSeed = 7;
     private const uint AttrMusicId = 166;
     private const uint AttrSprayTint = 233;
     private const uint AttrItemsCount = 270;
@@ -581,15 +586,25 @@ internal sealed class SteamConnection : IAsyncDisposable
         uint? sticker = null, music = null, charm = null, tint = null;
         var customName = string.IsNullOrEmpty(item.custom_name) ? null : item.custom_name;
         var statTrak = false;
+        int? seed = null;
+        uint? kills = null;
+        var stickers = new List<uint>();
 
         foreach (var attribute in item.attribute)
         {
+            // Sticker slots 0-5: ids 113, 117, ..., 133.
+            if (attribute.def_index is >= AttrStickerSlot0 and <= AttrStickerSlot5
+                && (attribute.def_index - AttrStickerSlot0) % 4 == 0
+                && AsUInt(attribute) is var kit and > 0)
+                stickers.Add(kit);
+
             switch (attribute.def_index)
             {
+                case AttrPaintSeed: seed = (int)Math.Floor(AsFloat(attribute)); break;
                 case AttrPaintIndex: paintIndex = (int)Math.Floor(AsFloat(attribute)); break;
                 case AttrCustomName: customName ??= AsString(attribute); break;
                 case AttrPaintWear: wear = AsFloat(attribute); break;
-                case AttrKillEater: statTrak = true; break;
+                case AttrKillEater: statTrak = true; kills = AsUInt(attribute); break;
                 case AttrStickerSlot0: sticker = AsUInt(attribute); break;
                 case AttrMusicId: music = AsUInt(attribute); break;
                 case AttrSprayTint: tint = AsUInt(attribute); break;
@@ -617,7 +632,10 @@ internal sealed class SteamConnection : IAsyncDisposable
             tint,
             statTrak,
             casketId,
-            itemsCount);
+            itemsCount,
+            seed,
+            kills,
+            stickers);
     }
 
     /// <summary>

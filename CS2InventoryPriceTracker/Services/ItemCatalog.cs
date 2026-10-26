@@ -16,7 +16,10 @@ public record GcItem(
     uint? GraffitiTint,
     bool HasStatTrak,
     ulong? CasketId,
-    int? CasketItemCount);
+    int? CasketItemCount,
+    int? PaintSeed = null,
+    uint? KillCount = null,
+    IReadOnlyList<uint>? Stickers = null);
 
 /// <summary>What the app shows for a <see cref="GcItem"/>.</summary>
 public record ResolvedItem(string MarketHashName, string Name, string? Type, string? RarityColor, string? IconPath, bool Marketable);
@@ -83,6 +86,13 @@ public class ItemCatalog
         {
             _loadLock.Release();
         }
+    }
+
+    /// <summary>Name of a sticker (or patch) kit, e.g. "Sticker | Natus Vincere | Katowice 2014".</summary>
+    public async Task<string?> StickerNameAsync(uint kit)
+    {
+        var t = await GetTablesAsync();
+        return Find(t.Stickers, kit) is { } sticker ? sticker[0] : Find(t.Patches, kit)?[0];
     }
 
     /// <summary>CS2 client version from the game files when items.json was generated (0 if unknown).</summary>

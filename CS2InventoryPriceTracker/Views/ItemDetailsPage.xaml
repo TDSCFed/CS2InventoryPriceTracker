@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:CS2InventoryPriceTracker.ViewModels"
+             x:Class="CS2InventoryPriceTracker.Views.ItemDetailsPage"
+             Title="Item">
+
+    <ScrollView>
+        <VerticalStackLayout Padding="12,8" Spacing="10">
+
+            <!-- Item -->
+            <Border Style="{StaticResource Card}" Padding="12">
+                <VerticalStackLayout Spacing="6">
+                    <BoxView HeightRequest="4" CornerRadius="2" Color="{Binding Card.RarityColor}" />
+                    <Image Source="{Binding Card.IconUrl}" HeightRequest="150" Aspect="AspectFit" />
+                    <Label Text="{Binding Card.Title}" FontSize="18" FontAttributes="Bold" HorizontalTextAlignment="Center" />
+                    <Label Text="{Binding Card.Subtitle}" FontSize="13" Opacity="0.7" HorizontalTextAlignment="Center" />
+                    <Grid ColumnDefinitions="*,*" Margin="0,6,0,0">
+                        <VerticalStackLayout>
+                            <Label Text="Price" FontSize="12" Opacity="0.7" />
+                            <Label Text="{Binding Card.PriceText}" FontSize="18" FontAttributes="Bold" />
+                        </VerticalStackLayout>
+                        <VerticalStackLayout Grid.Column="1" HorizontalOptions="End">
+                            <Label Text="{Binding Card.Entry.Quantity, StringFormat='Quantity ×{0}'}" FontSize="12" Opacity="0.7"
+                                   HorizontalTextAlignment="End" />
+                            <Label Text="{Binding Card.TotalText}" FontSize="15" TextColor="{StaticResource PriceGreen}"
+                                   HorizontalTextAlignment="End" />
+                        </VerticalStackLayout>
+                    </Grid>
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- Prices on every market -->
+            <Label Text="Markets" FontSize="17" FontAttributes="Bold" />
+            <VerticalStackLayout BindableLayout.ItemsSource="{Binding Markets}" Spacing="6">
+                <BindableLayout.EmptyView>
+                    <Label Text="This item can't be sold on the market." FontSize="13" Opacity="0.7" />
+                </BindableLayout.EmptyView>
+                <BindableLayout.ItemTemplate>
+                    <DataTemplate>
+                        <Border Style="{StaticResource Card}">
+                            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
+                                <VerticalStackLayout VerticalOptions="Center">
+                                    <Label Text="{Binding Market}" FontSize="15" FontAttributes="Bold">
+                                        <Label.Triggers>
+                                            <DataTrigger TargetType="Label" Binding="{Binding IsSelected}" Value="True">
+                                                <Setter Property="TextColor" Value="{StaticResource Primary}" />
+                                            </DataTrigger>
+                                        </Label.Triggers>
+                                    </Label>
+                                    <Label Text="{Binding DetailText}" FontSize="11" Opacity="0.6" />
+                                </VerticalStackLayout>
+                                <Label Grid.Column="1" Text="{Binding PriceText}" FontSize="15" FontAttributes="Bold"
+                                       VerticalOptions="Center" />
+                                <Button Grid.Column="2" Text="Open" FontSize="12" Padding="10,4" CornerRadius="8"
+                                        VerticalOptions="Center"
+                                        Command="{Binding Source={RelativeSource AncestorType={x:Type vm:ItemDetailsViewModel}}, Path=OpenMarketCommand}"
+                                        CommandParameter="{Binding .}" />
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </BindableLayout.ItemTemplate>
+            </VerticalStackLayout>
+
+            <!-- Price history -->
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                <Label Text="Price history" FontSize="17" FontAttributes="Bold" VerticalOptions="Center" />
+                <Picker Grid.Column="1" WidthRequest="150"
+                        ItemsSource="{Binding MarketChoices}"
+                        ItemDisplayBinding="{Binding Label}"
+                        SelectedItem="{Binding SelectedMarket}" />
+            </Grid>
+            <Border Style="{StaticResource Card}" Padding="8">
+                <GraphicsView x:Name="ChartView" HeightRequest="200" />
+            </Border>
+            <Label Text="{Binding HistoryText}" FontSize="12" Opacity="0.7" />
+
+            <!-- Each copy -->
+            <Label Text="Your copies" FontSize="17" FontAttributes="Bold" IsVisible="{Binding HasCopies}" />
+            <VerticalStackLayout BindableLayout.ItemsSource="{Binding Copies}" Spacing="6" IsVisible="{Binding HasCopies}">
+                <BindableLayout.ItemTemplate>
+                    <DataTemplate>
+                        <Border Style="{StaticResource Card}">
+                            <VerticalStackLayout Spacing="2">
+                                <Label Text="{Binding Title}" FontSize="14" FontAttributes="Bold" />
+                                <Label Text="{Binding Details}" FontSize="12" Opacity="0.8" />
+                            </VerticalStackLayout>
+                        </Border>
+                    </DataTemplate>
+                </BindableLayout.ItemTemplate>
+            </VerticalStackLayout>
+            <Label FontSize="12" Opacity="0.6" IsVisible="{Binding HasCopies}"
+                   Text="Float, pattern, stickers and StatTrak come from CS2 when storage units are loaded (needs the Steam login)." />
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

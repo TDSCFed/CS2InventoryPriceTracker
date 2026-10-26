@@ -180,5 +180,35 @@ public class PriceHistoryEntry
     public static string MakeKey(string source, string name, string date) => $"{source}|{name}|{date}";
 }
 
+/// <summary>
+/// Details of one copy of an item read from the CS2 Game Coordinator (float, pattern, stickers, StatTrak),
+/// linked to its inventory line by <see cref="EntryKey"/>.
+/// </summary>
+[Table("item_details")]
+public class ItemDetail
+{
+    /// <summary>Item id (same as the asset id in the Steam inventory).</summary>
+    [PrimaryKey]
+    public string Id { get; set; } = "";
+
+    /// <summary>Key of the <see cref="InventoryEntry"/> this copy belongs to.</summary>
+    [Indexed]
+    public string EntryKey { get; set; } = "";
+
+    /// <summary>Exact wear (float), e.g. 0.0712.</summary>
+    public double? Float { get; set; }
+
+    /// <summary>Pattern template (paint seed).</summary>
+    public int? Seed { get; set; }
+
+    /// <summary>StatTrak kill count.</summary>
+    public int? Kills { get; set; }
+
+    /// <summary>Applied stickers and patches, one name per line.</summary>
+    public string? Stickers { get; set; }
+
+    public string? CustomName { get; set; }
+}
+
 /// <summary>A price returned by a market.</summary>
 public record PriceQuote(string MarketHashName, double? LowestPrice, double? MedianPrice, int? Volume);
