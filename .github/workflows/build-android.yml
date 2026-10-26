@@ -29,6 +29,22 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
+      # Refreshes the item names used for storage unit contents (new cases, skins, stickers...).
+      # If the source is unreachable, the copy committed in the repository is used.
+      - name: Update item data
+        continue-on-error: true
+        run: python3 tools/generate_item_data.py
+
+      # Unit tests (prices, item names, Game Coordinator data, inventory reading). They run before the slow
+      # Android build so a broken change fails in a couple of minutes. The checks against the live APIs run
+      # separately, every week (api-checks.yml).
+      - name: Run tests
+        run: >
+          dotnet test tests/CS2InventoryPriceTracker.Tests/CS2InventoryPriceTracker.Tests.csproj
+          --filter "Category!=Live"
+          --logger "console;verbosity=normal"
+          --logger "GitHubActions"
+
       - name: Install MAUI Android workload
         run: dotnet workload install maui-android
 
@@ -39,12 +55,6 @@ jobs:
           -f net10.0-android
           -p:AndroidSdkDirectory="$ANDROID_HOME"
           -p:AcceptAndroidSDKLicenses=True
-
-      # Refreshes the item names used for storage unit contents (new cases, skins, stickers...).
-      # If the source is unreachable, the copy committed in the repository is used.
-      - name: Update item data
-        continue-on-error: true
-        run: python3 tools/generate_item_data.py
 
       # Every APK is signed with the same key (from repository secrets), so a new build installs over the
       # previous one and keeps the app data (Steam login, cached prices). Without the secrets (e.g. pull requests

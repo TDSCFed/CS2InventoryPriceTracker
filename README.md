@@ -79,6 +79,21 @@ Prices are cached in SQLite (or refreshed on demand with **Update prices** in th
 current listing, or the median sale price when nothing is listed. Bulk markets are subclasses of `BulkPriceProvider`,
 so adding another one only needs its download and parsing.
 
+## Tests
+
+`tests/CS2InventoryPriceTracker.Tests` (xUnit, plain .NET 10) compiles the platform-independent app files directly
+and tests: price parsing for every market, item names built for storage unit contents against the real `items.json`,
+Game Coordinator attribute decoding (wear, pattern, stickers, storage unit links, trade holds) and reading the Steam
+inventory and profiles (with a fake HTTP handler, no network).
+
+```
+dotnet test tests/CS2InventoryPriceTracker.Tests --filter "Category!=Live"
+```
+
+CI runs them before every Android build, so a failing test stops the APK. Tests marked `Category=Live` call the real
+Steam, Skinport and Market.CSGO APIs to detect format changes; the **API checks** workflow runs them every Monday (and
+on demand from the Actions tab).
+
 ## Structure
 
 - `Models/` - SQLite entities (inventory lines, cached prices, daily value snapshots and price history)
@@ -89,3 +104,4 @@ so adding another one only needs its download and parsing.
 - `Controls/` - `LineChartDrawable` (charts drawn with MAUI graphics, no chart library)
 - `ViewModels/` - MVVM view models (CommunityToolkit.Mvvm)
 - `Views/` - pages (XAML)
+- `tests/` - unit tests and live API checks
