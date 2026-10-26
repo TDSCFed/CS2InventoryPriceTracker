@@ -59,7 +59,7 @@ The **Account** tab chooses which market values and totals use (Steam Market by 
 
 | Market | How | Refreshed |
 | --- | --- | --- |
-| Steam Market | one request per item, about 20 per minute | every 12 hours |
+| Steam Market | one request per item, about 20 per minute, most valuable items first | every 12 hours (7 days for items under 0,10 € on other markets) |
 | Skinport | `api.skinport.com/v1/items`, every item at once (Brotli required) | every 30 minutes |
 | Market.CSGO | `market.csgo.com/api/v2/prices/EUR.json`, every item at once | every 30 minutes |
 
