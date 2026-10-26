@@ -22,6 +22,10 @@ https://github.com/TDSCFed/CS2InventoryPriceTracker/releases/latest/download/CS2
 
 Every pull request gets its own pre-release, and the download link is posted as a comment on the PR.
 
+Each CI build is numbered from the workflow run (version `1.0.<run>`, version code `<run>`), shown at the bottom of
+the **Account** tab and in the release titles. Android refuses to install a lower version code over a higher one, so
+an older PR build can't be installed over a newer build without uninstalling first.
+
 CI signs every APK with the same key, so new builds install over the old one and keep the app data. The key comes from
 two repository secrets: `ANDROID_KEYSTORE_BASE64` (the PKCS12 keystore, base64) and `ANDROID_KEYSTORE_PASSWORD`
 (alias `cs2inventory`). Without them the APK is signed with a temporary debug key. Builds from Rider use your local

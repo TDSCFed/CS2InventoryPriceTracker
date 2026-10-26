@@ -49,6 +49,9 @@ public partial class SettingsViewModel : ObservableObject
 
     public bool HasAccount => SteamId is not null;
 
+    /// <summary>App version, set by CI from the build number, e.g. "Version 1.0.42 (42)".</summary>
+    public string VersionText => $"CS2 Inventory · version {AppInfo.Current.VersionString} ({AppInfo.Current.BuildString})";
+
     public IReadOnlyList<PriceSourceChoice> PriceSourceChoices { get; } =
     [
         new("Steam Market", PriceSources.Steam),
