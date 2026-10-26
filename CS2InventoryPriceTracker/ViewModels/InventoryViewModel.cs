@@ -41,6 +41,9 @@ public partial class InventoryViewModel : ObservableObject
     private List<StorageUnit> _units = new();
     private Dictionary<string, List<ItemCard>> _byHashName = new();
     private string? _loadedSteamId;
+
+    /// <summary>A storage unit counts as almost full from this many items.</summary>
+    private const int AlmostFull = 950;
     private string _priceSource = PriceSources.Steam;
 
     private string PriceSourceName => _priceSource == PriceSources.Lowest
@@ -115,6 +118,12 @@ public partial class InventoryViewModel : ObservableObject
     [ObservableProperty]
     private FilterChoice _selectedRarity = AllRarities;
 
+    /// <summary>Shows only items with at least one trade-locked copy.</summary>
+    [ObservableProperty]
+    private bool _onlyLocked;
+
+    partial void OnOnlyLockedChanged(bool value) => ApplyView();
+
     /// <summary>Lists the items under one header per category.</summary>
     [ObservableProperty]
     private bool _groupByCategory = Preferences.Get(GroupByCategoryKey, false);
@@ -155,6 +164,7 @@ public partial class InventoryViewModel : ObservableObject
         SelectedCategory = AllCategories;
         SelectedRarity = AllRarities;
         ShowUnmarketable = true;
+        OnlyLocked = false;
     }
 
     private bool _updatingChoices;
@@ -326,6 +336,18 @@ public partial class InventoryViewModel : ObservableObject
                 e.ContainerId is not null && unitNames.TryGetValue(e.ContainerId, out var name) ? name : null,
                 _priceSource))
             .ToList();
+        // Trade holds read from CS2 have exact dates, also for main inventory items the public inventory
+        // shows as locked without a date.
+        var locks = await _store.GetTradeLocksAsync();
+        foreach (var card in _all)
+        {
+            if (!locks.TryGetValue(card.Entry.Key, out var lockInfo))
+                continue;
+            card.LockedCount = Math.Max(card.LockedCount, lockInfo.Count);
+            if (card.LockedUntil is null || lockInfo.Until > card.LockedUntil)
+                card.LockedUntil = lockInfo.Until;
+        }
+
         _byHashName = _all
             .Where(c => c.Entry.Marketable)
             .GroupBy(c => c.Entry.MarketHashName)
@@ -363,7 +385,9 @@ public partial class InventoryViewModel : ObservableObject
         LocationChoices.Add(MainInventory);
         LocationChoices.Add(Everything);
         foreach (var unit in _units)
-            LocationChoices.Add(new LocationChoice($"📦 {unitNames[unit.Id]} ({unit.ItemCount})", false, unit.Id));
+            LocationChoices.Add(new LocationChoice(
+                $"📦 {unitNames[unit.Id]} ({unit.ItemCount}/{StorageUnit.Capacity}{(unit.ItemCount >= AlmostFull ? " · almost full" : "")})",
+                false, unit.Id));
         SelectedLocation = LocationChoices.FirstOrDefault(l => l.Everything == selectedEverything && l.ContainerId == selectedId)
                            ?? MainInventory;
 
@@ -566,7 +590,8 @@ public partial class InventoryViewModel : ObservableObject
         foreach (var card in _all.Where(c => c.StorageUnitId is not null))
         {
             var found = byContainer.TryGetValue(card.StorageUnitId!, out var info);
-            card.StorageSummary = found ? $"{info.Count} items" : "empty";
+            card.StorageSummary = found ? $"{info.Count}/{StorageUnit.Capacity}" + (info.Count >= AlmostFull ? " ⚠ almost full" : "") : "empty";
+            card.IsAlmostFull = found && info.Count >= AlmostFull;
             card.HasMarketableContents = found && info.Marketable;
             card.ContentsValue = found && info.Marketable ? info.Value : null;
         }
@@ -627,6 +652,9 @@ public partial class InventoryViewModel : ObservableObject
         if (SelectedRarity?.Value is { } rarity)
             view = view.Where(c => c.Entry.Rarity == rarity);
 
+        if (OnlyLocked)
+            view = view.Where(c => c.HasLock);
+
         var query = SearchText?.Trim();
         if (!string.IsNullOrEmpty(query))
             view = view.Where(c =>
@@ -652,7 +680,8 @@ public partial class InventoryViewModel : ObservableObject
             Groups.Add(new ItemGroup("", "", sorted));
         }
 
-        var active = (SelectedCategory?.Value is null ? 0 : 1) + (SelectedRarity?.Value is null ? 0 : 1) + (ShowUnmarketable ? 0 : 1);
+        var active = (SelectedCategory?.Value is null ? 0 : 1) + (SelectedRarity?.Value is null ? 0 : 1)
+                     + (ShowUnmarketable ? 0 : 1) + (OnlyLocked ? 1 : 0);
         FiltersButtonText = active == 0 ? "Filters" : $"Filters ({active})";
     }
 

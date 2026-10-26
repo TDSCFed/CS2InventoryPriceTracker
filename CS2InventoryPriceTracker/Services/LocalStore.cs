@@ -163,6 +163,20 @@ public class LocalStore
         return await db.Table<ItemDetail>().Where(d => d.EntryKey == entryKey).ToListAsync();
     }
 
+    /// <summary>
+    /// Latest trade-hold end of each inventory line, from the Game Coordinator details
+    /// (more precise than the public inventory, which often has no date).
+    /// </summary>
+    public async Task<Dictionary<string, (int Count, DateTime Until)>> GetTradeLocksAsync()
+    {
+        var db = await GetDbAsync();
+        var now = DateTime.UtcNow;
+        var rows = await db.Table<ItemDetail>().Where(d => d.TradableAfter != null).ToListAsync();
+        return rows.Where(d => d.TradableAfter > now)
+            .GroupBy(d => d.EntryKey)
+            .ToDictionary(g => g.Key, g => (g.Count(), g.Max(d => d.TradableAfter!.Value)));
+    }
+
     /// <summary>Every snapshot of one day.</summary>
     public async Task<List<ValueSnapshot>> GetSnapshotsForDateAsync(string date)
     {

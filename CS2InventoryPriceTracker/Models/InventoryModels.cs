@@ -42,6 +42,12 @@ public class InventoryEntry
 
     public bool IsStorageUnit { get; set; }
 
+    /// <summary>Copies that can't be traded or sold yet (trade protection after buying or trading).</summary>
+    public int LockedCount { get; set; }
+
+    /// <summary>When the last locked copy can be traded again (UTC), when known.</summary>
+    public DateTime? LockedUntil { get; set; }
+
     /// <summary>Where the item is: null for the main inventory, or the asset id of the storage unit holding it.</summary>
     public string? ContainerId { get; set; }
 
@@ -103,6 +109,9 @@ public class StorageUnit
     public string? Name { get; set; }
 
     public int ItemCount { get; set; }
+
+    /// <summary>A storage unit holds at most this many items.</summary>
+    public const int Capacity = 1000;
 
     /// <summary>Icon of the storage unit item.</summary>
     public string? IconPath { get; set; }
@@ -209,6 +218,9 @@ public class ItemDetail
 
     /// <summary>StatTrak kill count.</summary>
     public int? Kills { get; set; }
+
+    /// <summary>When this copy can be traded again (UTC), if it is trade protected.</summary>
+    public DateTime? TradableAfter { get; set; }
 
     /// <summary>Applied stickers and patches, one name per line.</summary>
     public string? Stickers { get; set; }

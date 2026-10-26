@@ -124,6 +124,8 @@ public partial class ItemDetailsViewModel : ObservableObject, IQueryAttributable
                 lines.Add($"Pattern {seed}");
             if (copy.Kills is { } kills)
                 lines.Add($"StatTrak™ {kills} kills");
+            if (copy.TradableAfter > DateTime.UtcNow)
+                lines.Add($"🔒 Trade locked until {copy.TradableAfter.Value.ToLocalTime():dd/MM/yyyy HH:mm}");
             if (!string.IsNullOrEmpty(copy.Stickers))
                 lines.Add(copy.Stickers);
 

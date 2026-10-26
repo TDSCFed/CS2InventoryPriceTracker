@@ -12,6 +12,8 @@ public partial class ItemCard : ObservableObject
     {
         Entry = entry;
         Location = location;
+        _lockedCount = entry.LockedCount;
+        _lockedUntil = entry.LockedUntil;
         _priceSource = priceSource;
         foreach (var price in prices ?? [])
             _prices[price.Source] = price;
@@ -39,6 +41,34 @@ public partial class ItemCard : ObservableObject
 
     /// <summary>Can be sold: a marketable item, or a storage unit with marketable items inside.</summary>
     public bool IsSellable => Entry.Marketable || (Entry.IsStorageUnit && HasMarketableContents);
+
+    /// <summary>Copies still trade protected and when the last one unlocks (UTC; null when unknown).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(LockText), nameof(HasLock))]
+    private int _lockedCount;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(LockText), nameof(HasLock))]
+    private DateTime? _lockedUntil;
+
+    /// <summary>True while at least one copy can't be traded or sold.</summary>
+    public bool HasLock => LockedCount > 0 && (LockedUntil is null || LockedUntil > DateTime.UtcNow);
+
+    /// <summary>E.g. "Trade locked until 02/11 08:00" or "2 of 5 trade locked until 02/11 08:00".</summary>
+    public string LockText
+    {
+        get
+        {
+            if (!HasLock)
+                return "";
+            var who = Entry.Quantity > 1 ? $"{Math.Min(LockedCount, Entry.Quantity)} of {Entry.Quantity} trade locked" : "Trade locked";
+            return LockedUntil is { } until ? $"🔒 {who} until {until.ToLocalTime():dd/MM HH:mm}" : $"🔒 {who}";
+        }
+    }
+
+    /// <summary>For a storage unit: true when it is close to the 1000 item limit.</summary>
+    [ObservableProperty]
+    private bool _isAlmostFull;
 
     /// <summary>For a storage unit: "12 items" once its contents are loaded.</summary>
     [ObservableProperty]

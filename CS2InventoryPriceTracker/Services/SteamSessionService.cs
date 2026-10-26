@@ -230,6 +230,8 @@ internal sealed class SteamConnection : IAsyncDisposable
     private const uint AttrStickerSlot0 = 113;
     private const uint AttrStickerSlot5 = 133;
     private const uint AttrPaintSeed = 7;
+    private const uint AttrTradableAfter = 75;
+    private const uint AttrTradeProtectedUntil = 312;
     private const uint AttrMusicId = 166;
     private const uint AttrSprayTint = 233;
     private const uint AttrItemsCount = 270;
@@ -587,6 +589,7 @@ internal sealed class SteamConnection : IAsyncDisposable
         var customName = string.IsNullOrEmpty(item.custom_name) ? null : item.custom_name;
         var statTrak = false;
         int? seed = null;
+        uint tradableAfter = 0;
         uint? kills = null;
         var stickers = new List<uint>();
 
@@ -601,6 +604,7 @@ internal sealed class SteamConnection : IAsyncDisposable
             switch (attribute.def_index)
             {
                 case AttrPaintSeed: seed = (int)Math.Floor(AsFloat(attribute)); break;
+                case AttrTradableAfter or AttrTradeProtectedUntil: tradableAfter = Math.Max(tradableAfter, AsUInt(attribute)); break;
                 case AttrPaintIndex: paintIndex = (int)Math.Floor(AsFloat(attribute)); break;
                 case AttrCustomName: customName ??= AsString(attribute); break;
                 case AttrPaintWear: wear = AsFloat(attribute); break;
@@ -635,7 +639,8 @@ internal sealed class SteamConnection : IAsyncDisposable
             itemsCount,
             seed,
             kills,
-            stickers);
+            stickers,
+            tradableAfter > 0 ? DateTimeOffset.FromUnixTimeSeconds(tradableAfter).UtcDateTime : null);
     }
 
     /// <summary>
