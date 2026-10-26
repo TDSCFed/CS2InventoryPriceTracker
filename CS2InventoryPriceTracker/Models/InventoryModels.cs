@@ -219,6 +219,9 @@ public class ItemDetail
     /// <summary>StatTrak kill count.</summary>
     public int? Kills { get; set; }
 
+    /// <summary>Doppler / Gamma Doppler phase, e.g. "Ruby" or "Phase 2".</summary>
+    public string? Phase { get; set; }
+
     /// <summary>When this copy can be traded again (UTC), if it is trade protected.</summary>
     public DateTime? TradableAfter { get; set; }
 

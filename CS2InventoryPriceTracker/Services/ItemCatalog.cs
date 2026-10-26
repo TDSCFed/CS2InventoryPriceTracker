@@ -67,6 +67,7 @@ public class ItemCatalog
         Dictionary<string, string[]> Graffiti,
         Dictionary<string, string[]> Music,
         Dictionary<string, string[]> Charms,
+        Dictionary<string, string[]> Phases,
         uint ClientVersion);
 
     private async Task<Tables> GetTablesAsync()
@@ -90,7 +91,7 @@ public class ItemCatalog
 
                 _tables = new Tables(
                     Read("defs"), Read("skins"), Read("stickers"), Read("patches"),
-                    Read("graffiti"), Read("music"), Read("charms"),
+                    Read("graffiti"), Read("music"), Read("charms"), Read("phases"),
                     data.TryGetValue("clientVersion", out var version) && version.TryGetUInt32(out var v) ? v : 0);
             }
             return _tables;
@@ -99,6 +100,18 @@ public class ItemCatalog
         {
             _loadLock.Release();
         }
+    }
+
+    /// <summary>
+    /// Doppler / Gamma Doppler phase of a paint kit ("Ruby", "Sapphire", "Black Pearl", "Emerald", "Phase 1"...),
+    /// or null for every other skin. The phase is fixed by the paint kit, not by the pattern.
+    /// </summary>
+    public async Task<string?> PhaseAsync(int? paintIndex)
+    {
+        if (paintIndex is null or 0)
+            return null;
+        var t = await GetTablesAsync();
+        return Find(t.Phases, paintIndex.Value.ToString())?[0];
     }
 
     /// <summary>Name of a sticker (or patch) kit, e.g. "Sticker | Natus Vincere | Katowice 2014".</summary>

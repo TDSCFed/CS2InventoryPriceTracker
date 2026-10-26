@@ -102,6 +102,39 @@ public class ItemCatalogTests
         Assert.Equal(expected, ItemCatalog.WearName(wear));
     }
 
+    [Theory]
+    [InlineData(415, "Ruby")]
+    [InlineData(416, "Sapphire")]
+    [InlineData(417, "Black Pearl")]
+    [InlineData(418, "Phase 1")]
+    [InlineData(421, "Phase 4")]
+    [InlineData(568, "Emerald")]
+    [InlineData(570, "Phase 2")]
+    [InlineData(618, "Phase 2")]
+    [InlineData(1119, "Emerald")]
+    public async Task Doppler_phases_come_from_the_paint_kit(int paint, string phase)
+    {
+        Assert.Equal(phase, await TestData.Catalog().PhaseAsync(paint));
+    }
+
+    [Fact]
+    public async Task Other_skins_have_no_phase()
+    {
+        Assert.Null(await TestData.Catalog().PhaseAsync(38));   // Fade
+        Assert.Null(await TestData.Catalog().PhaseAsync(null));
+        Assert.Null(await TestData.Catalog().PhaseAsync(0));
+    }
+
+    [Fact]
+    public async Task Every_phase_shares_the_doppler_market_name()
+    {
+        var ruby = await Resolve(Item(507, Unusual, 415, 0.01f));
+        var phase2 = await Resolve(Item(507, Unusual, 419, 0.01f));
+
+        Assert.Equal("★ Karambit | Doppler (Factory New)", ruby.MarketHashName);
+        Assert.Equal(ruby.MarketHashName, phase2.MarketHashName);
+    }
+
     [Fact]
     public async Task Sticker_names_for_applied_stickers()
     {

@@ -66,6 +66,25 @@ public partial class ItemCard : ObservableObject
         }
     }
 
+    /// <summary>Doppler phases of the copies, e.g. "💎 Ruby" or "💎 Phase 2 ×2 · Sapphire" (from CS2, with the Steam login).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasPhase))]
+    private string? _phaseText;
+
+    public bool HasPhase => !string.IsNullOrEmpty(PhaseText);
+
+    /// <summary>Builds <see cref="PhaseText"/> from the phase of each copy, rarest phases first.</summary>
+    public void SetPhases(IEnumerable<string> phases)
+    {
+        string[] order = ["Ruby", "Sapphire", "Black Pearl", "Emerald", "Phase 2", "Phase 4", "Phase 1", "Phase 3"];
+        var parts = phases
+            .GroupBy(p => p)
+            .OrderBy(g => Array.IndexOf(order, g.Key) is var i && i >= 0 ? i : order.Length)
+            .Select(g => g.Count() > 1 ? $"{g.Key} ×{g.Count()}" : g.Key)
+            .ToList();
+        PhaseText = parts.Count > 0 ? "💎 " + string.Join(" · ", parts) : null;
+    }
+
     /// <summary>For a storage unit: true when it is close to the 1000 item limit.</summary>
     [ObservableProperty]
     private bool _isAlmostFull;

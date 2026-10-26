@@ -336,6 +336,12 @@ public partial class InventoryViewModel : ObservableObject
                 e.ContainerId is not null && unitNames.TryGetValue(e.ContainerId, out var name) ? name : null,
                 _priceSource))
             .ToList();
+        // Doppler phases come from CS2 (the Steam inventory doesn't say which phase a copy is).
+        var phases = await _store.GetPhasesAsync();
+        foreach (var card in _all)
+            if (phases.TryGetValue(card.Entry.Key, out var cardPhases))
+                card.SetPhases(cardPhases);
+
         // Trade holds read from CS2 have exact dates, also for main inventory items the public inventory
         // shows as locked without a date.
         var locks = await _store.GetTradeLocksAsync();

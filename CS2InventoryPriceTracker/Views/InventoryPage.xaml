@@ -151,6 +151,8 @@
                                                 </DataTrigger>
                                             </Label.Triggers>
                                         </Label>
+                                        <Label Text="{Binding PhaseText}" IsVisible="{Binding HasPhase}"
+                                               FontSize="11" TextColor="#4FA8FF" />
                                         <Label Text="{Binding LockText}" IsVisible="{Binding HasLock}"
                                                FontSize="11" TextColor="#E5A100" />
                                         <Label Text="{Binding MarketPricesText}" IsVisible="{Binding HasMarketPrices}"

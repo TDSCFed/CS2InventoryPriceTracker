@@ -114,6 +114,7 @@ public class StorageUnitService(SteamSessionService session, ItemCatalog catalog
         }
 
         var tradableAfter = item.TradableAfter > DateTime.UtcNow ? item.TradableAfter : null;
+        var phase = await catalog.PhaseAsync(item.PaintIndex);
         if (item.PaintWear is null && item.PaintSeed is null && item.KillCount is null && stickerNames.Count == 0
             && tradableAfter is null)
             return null;
@@ -126,6 +127,7 @@ public class StorageUnitService(SteamSessionService session, ItemCatalog catalog
             Seed = item.PaintSeed,
             Kills = item.KillCount is { } kills ? (int)kills : null,
             TradableAfter = tradableAfter,
+            Phase = phase,
             Stickers = stickerNames.Count > 0 ? string.Join("\n", stickerNames) : null,
             CustomName = item.CustomName
         };
