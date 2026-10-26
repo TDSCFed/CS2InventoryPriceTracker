@@ -26,6 +26,7 @@ public class LocalStore
                 await db.CreateTableAsync<StorageUnit>();
                 await db.CreateTableAsync<ValueSnapshot>();
                 await db.CreateTableAsync<PriceHistoryEntry>();
+                await db.CreateTableAsync<ItemDetail>();
                 _db = db;
             }
             return _db;
@@ -84,6 +85,7 @@ public class LocalStore
         var db = await GetDbAsync();
         await db.DeleteAllAsync<InventoryEntry>();
         await db.DeleteAllAsync<StorageUnit>();
+        await db.DeleteAllAsync<ItemDetail>();
     }
 
     /// <summary>All cached prices of one market, by market hash name.</summary>
@@ -139,6 +141,26 @@ public class LocalStore
             foreach (var snapshot in list)
                 conn.InsertOrReplace(snapshot);
         });
+    }
+
+    /// <summary>Replaces every item detail read from the Game Coordinator.</summary>
+    public async Task ReplaceItemDetailsAsync(IEnumerable<ItemDetail> details)
+    {
+        var db = await GetDbAsync();
+        var list = details.ToList();
+        await db.RunInTransactionAsync(conn =>
+        {
+            conn.DeleteAll<ItemDetail>();
+            foreach (var detail in list)
+                conn.InsertOrReplace(detail);
+        });
+    }
+
+    /// <summary>Details of every copy of one inventory line.</summary>
+    public async Task<List<ItemDetail>> GetItemDetailsAsync(string entryKey)
+    {
+        var db = await GetDbAsync();
+        return await db.Table<ItemDetail>().Where(d => d.EntryKey == entryKey).ToListAsync();
     }
 
     /// <summary>Every snapshot of one day.</summary>

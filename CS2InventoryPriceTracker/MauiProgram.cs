@@ -41,11 +41,13 @@ public static class MauiProgram
         builder.Services.AddTransient<InventoryViewModel>();
         builder.Services.AddTransient<SettingsViewModel>();
         builder.Services.AddTransient<HistoryViewModel>();
+        builder.Services.AddTransient<ItemDetailsViewModel>();
 
         // Pages
         builder.Services.AddTransient<InventoryPage>();
         builder.Services.AddTransient<SettingsPage>();
         builder.Services.AddTransient<HistoryPage>();
+        builder.Services.AddTransient<ItemDetailsPage>();
 
 #if DEBUG
         builder.Logging.AddDebug();

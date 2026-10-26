@@ -351,7 +351,10 @@ public partial class InventoryViewModel : ObservableObject
     private async Task OpenItemAsync(ItemCard card)
     {
         if (!card.Entry.IsStorageUnit)
+        {
+            await Shell.Current.GoToAsync(AppShell.ItemDetailsRoute, new Dictionary<string, object> { ["card"] = card });
             return;
+        }
 
         if (card.StorageUnitId is { } id)
         {

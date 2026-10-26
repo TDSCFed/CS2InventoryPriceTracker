@@ -22,12 +22,13 @@ public class StorageUnitService(SteamSessionService session, ItemCatalog catalog
             if (settings.LoginSteamId is { } loginId && settings.SteamId is { } shownId && loginId != shownId)
                 throw new SteamException("The Steam login is for a different account than the inventory shown. Log in with the same account.");
 
-            var caskets = await session.LoadStorageUnitsAsync(progress, ct);
+            var inventory = await session.LoadStorageUnitsAsync(progress, ct);
             progress?.Report("Naming items…");
 
             var units = new List<StorageUnit>();
             var entries = new Dictionary<string, InventoryEntry>();
-            foreach (var casket in caskets)
+            var details = new List<ItemDetail>();
+            foreach (var casket in inventory.Caskets)
             {
                 var containerId = casket.Casket.Id.ToString();
                 var casketInfo = await catalog.ResolveAsync(casket.Casket);
@@ -44,6 +45,8 @@ public class StorageUnitService(SteamSessionService session, ItemCatalog catalog
                 {
                     var resolved = await catalog.ResolveAsync(item);
                     var key = InventoryEntry.MakeKey(containerId, resolved.Marketable, resolved.MarketHashName, resolved.Name, item.CustomName);
+                    if (await ToDetailAsync(item, key) is { } detail)
+                        details.Add(detail);
                     if (entries.TryGetValue(key, out var existing))
                     {
                         existing.Quantity++;
@@ -66,7 +69,18 @@ public class StorageUnitService(SteamSessionService session, ItemCatalog catalog
                 }
             }
 
+            // Items in the main inventory get their details too; their line comes from the public inventory,
+            // whose key is built the same way.
+            foreach (var item in inventory.InventoryItems.Where(i => i.DefIndex != ItemCatalog.StorageUnitDefIndex))
+            {
+                var resolved = await catalog.ResolveAsync(item);
+                var key = InventoryEntry.MakeKey(null, resolved.Marketable, resolved.MarketHashName, resolved.Name, item.CustomName);
+                if (await ToDetailAsync(item, key) is { } detail)
+                    details.Add(detail);
+            }
+
             await store.ReplaceStorageUnitsAsync(units, entries.Values);
+            await store.ReplaceItemDetailsAsync(details);
             settings.StorageUpdatedAt = DateTime.UtcNow;
             return units.Count;
         }
@@ -74,5 +88,32 @@ public class StorageUnitService(SteamSessionService session, ItemCatalog catalog
         {
             _busy.Release();
         }
+    }
+
+    /// <summary>Details worth showing for one copy (null for items that have none, like cases).</summary>
+    private async Task<ItemDetail?> ToDetailAsync(GcItem item, string entryKey)
+    {
+        var stickerNames = new List<string>();
+        foreach (var kit in item.Stickers ?? [])
+        {
+            // A sticker item carries its own kit in slot 0; only applied stickers are listed.
+            if (item.DefIndex is 1209 or 4609)
+                break;
+            stickerNames.Add(await catalog.StickerNameAsync(kit) ?? $"Sticker #{kit}");
+        }
+
+        if (item.PaintWear is null && item.PaintSeed is null && item.KillCount is null && stickerNames.Count == 0)
+            return null;
+
+        return new ItemDetail
+        {
+            Id = item.Id.ToString(),
+            EntryKey = entryKey,
+            Float = item.PaintWear,
+            Seed = item.PaintSeed,
+            Kills = item.KillCount is { } kills ? (int)kills : null,
+            Stickers = stickerNames.Count > 0 ? string.Join("\n", stickerNames) : null,
+            CustomName = item.CustomName
+        };
     }
 }
