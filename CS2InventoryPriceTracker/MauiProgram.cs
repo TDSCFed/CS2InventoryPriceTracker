@@ -40,10 +40,12 @@ public static class MauiProgram
         // View models
         builder.Services.AddTransient<InventoryViewModel>();
         builder.Services.AddTransient<SettingsViewModel>();
+        builder.Services.AddTransient<HistoryViewModel>();
 
         // Pages
         builder.Services.AddTransient<InventoryPage>();
         builder.Services.AddTransient<SettingsPage>();
+        builder.Services.AddTransient<HistoryPage>();
 
 #if DEBUG
         builder.Logging.AddDebug();

@@ -9,6 +9,7 @@ Android app (.NET MAUI) to see a Counter-Strike 2 Steam inventory and the curren
   total value (choose which market the totals use, or the cheapest one)
 - Search, sort (value, unit price, name, quantity) and hide unmarketable items
 - Optional Steam login to see what is inside storage units, with the value of each storage unit
+- History tab: value of the whole account or of one storage unit over time (7/30/90 days or all), on any market
 - Inventory and prices are kept on the phone, so the app opens instantly and works offline
 
 ## Download
@@ -69,10 +70,11 @@ so adding another one only needs its download and parsing.
 
 ## Structure
 
-- `Models/` - SQLite entities (inventory lines and cached prices)
+- `Models/` - SQLite entities (inventory lines, cached prices, daily value snapshots and price history)
 - `Services/` - `SteamInventoryService` (profiles and inventory), `IPriceProvider` with `SteamMarketPriceProvider`,
   `SkinportPriceProvider` and `CsgoMarketPriceProvider`, `PriceUpdater` (background price refresh), `SteamSessionService` (Steam login and CS2 Game Coordinator),
   `StorageUnitService` + `ItemCatalog` (storage unit contents), `LocalStore` (SQLite) and `SettingsService`
 - `tools/` - `generate_item_data.py` (item names for storage unit contents)
+- `Controls/` - `LineChartDrawable` (charts drawn with MAUI graphics, no chart library)
 - `ViewModels/` - MVVM view models (CommunityToolkit.Mvvm)
 - `Views/` - pages (XAML)

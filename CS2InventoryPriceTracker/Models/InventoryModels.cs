@@ -107,5 +107,78 @@ public class StorageUnit
     public string DisplayName => string.IsNullOrEmpty(Name) ? "Storage Unit" : Name;
 }
 
+/// <summary>
+/// Value of the inventory (or of one storage unit) on one day, on every market.
+/// The row of the current day is replaced as prices change, so each day keeps its last value.
+/// </summary>
+[Table("value_snapshots")]
+public class ValueSnapshot
+{
+    /// <summary>"yyyy-MM-dd|scope".</summary>
+    [PrimaryKey]
+    public string Key { get; set; } = "";
+
+    /// <summary>Local date, "yyyy-MM-dd".</summary>
+    [Indexed]
+    public string Date { get; set; } = "";
+
+    /// <summary><see cref="AccountScope"/> for the whole account, or the id of a storage unit.</summary>
+    [Indexed]
+    public string Scope { get; set; } = "";
+
+    public double? Steam { get; set; }
+    public double? Skinport { get; set; }
+    public double? CsgoMarket { get; set; }
+    public double? Lowest { get; set; }
+
+    public DateTime UpdatedAt { get; set; }
+
+    public const string AccountScope = "account";
+
+    public static string MakeKey(string date, string scope) => $"{date}|{scope}";
+
+    /// <summary>Value on one market (see PriceSources).</summary>
+    public double? ValueFor(string source) => source switch
+    {
+        "steam" => Steam,
+        "skinport" => Skinport,
+        "csgomarket" => CsgoMarket,
+        "lowest" => Lowest,
+        _ => null
+    };
+
+    public void SetValue(string source, double? value)
+    {
+        switch (source)
+        {
+            case "steam": Steam = value; break;
+            case "skinport": Skinport = value; break;
+            case "csgomarket": CsgoMarket = value; break;
+            case "lowest": Lowest = value; break;
+        }
+    }
+}
+
+/// <summary>Price of one item on one market on one day (the last price seen that day).</summary>
+[Table("price_history")]
+public class PriceHistoryEntry
+{
+    /// <summary>"source|market hash name|yyyy-MM-dd".</summary>
+    [PrimaryKey]
+    public string Key { get; set; } = "";
+
+    public string Source { get; set; } = "";
+
+    [Indexed]
+    public string MarketHashName { get; set; } = "";
+
+    /// <summary>Local date, "yyyy-MM-dd".</summary>
+    public string Date { get; set; } = "";
+
+    public double Price { get; set; }
+
+    public static string MakeKey(string source, string name, string date) => $"{source}|{name}|{date}";
+}
+
 /// <summary>A price returned by a market.</summary>
 public record PriceQuote(string MarketHashName, double? LowestPrice, double? MedianPrice, int? Volume);
