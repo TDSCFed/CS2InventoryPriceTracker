@@ -11,6 +11,8 @@
 		<IsPackable>false</IsPackable>
 		<DefineConstants>$(DefineConstants);TESTS</DefineConstants>
 		<RootNamespace>CS2InventoryPriceTracker.Tests</RootNamespace>
+		<!-- SQLitePCLRaw ships Alpine-specific native files that .NET no longer looks up; harmless here -->
+		<NoWarn>$(NoWarn);NETSDK1206</NoWarn>
 	</PropertyGroup>
 
 	<ItemGroup>

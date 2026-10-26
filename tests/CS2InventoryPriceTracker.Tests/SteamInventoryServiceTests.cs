@@ -52,7 +52,7 @@ public class SteamInventoryServiceTests
         var entries = await Service(new FakeHttpHandler().Add("/inventory/", Inventory)).GetInventoryAsync(SteamId);
 
         var ak = Assert.Single(entries, e => e.MarketHashName == "AK-47 | Redline (Field-Tested)");
-        Assert.Equal(2, ak.Quantity);
+        Assert.Equal(3, ak.Quantity); // two tradable copies and one under trade hold
         Assert.True(ak.Marketable, "a trade-protected copy still has a market price");
         Assert.Equal(1, ak.LockedCount);
         Assert.Equal(new DateTime(2026, 11, 2, 7, 0, 0, DateTimeKind.Utc), ak.LockedUntil!.Value.ToUniversalTime());
