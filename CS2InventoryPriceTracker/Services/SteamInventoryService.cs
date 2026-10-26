@@ -124,6 +124,10 @@ public partial class SteamInventoryService(HttpClient http)
                 Name = d.Name ?? d.MarketHashName ?? "Unknown item",
                 CustomName = customName,
                 Type = d.Type,
+                Category = d.MarketHashName == "Storage Unit" || d.Name == "Storage Unit"
+                    ? ItemCategories.StorageUnit
+                    : ItemCategories.FromSteamType(d.Tags?.FirstOrDefault(t => t.Category == "Type")?.Name),
+                Rarity = d.Tags?.FirstOrDefault(t => t.Category == "Rarity")?.Name,
                 RarityColor = d.Tags?.FirstOrDefault(t => t.Category == "Rarity")?.Color ?? d.NameColor,
                 IconPath = d.IconUrl,
                 Quantity = amount,

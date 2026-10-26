@@ -53,35 +53,69 @@
                 </Label.Triggers>
             </Label>
 
-            <!-- Search, location and sort -->
-            <Grid Grid.Row="4" RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                <SearchBar Grid.ColumnSpan="2" Placeholder="Search items..." Text="{Binding SearchText}" />
-                <Picker Grid.Row="1" Grid.ColumnSpan="2" Title="Location"
-                        ItemsSource="{Binding LocationChoices}"
-                        ItemDisplayBinding="{Binding Label}"
-                        SelectedItem="{Binding SelectedLocation}" />
-                <Picker Grid.Row="2" Title="Sort by"
-                        ItemsSource="{Binding SortChoices}"
-                        ItemDisplayBinding="{Binding Label}"
-                        SelectedItem="{Binding SelectedSort}" />
-                <HorizontalStackLayout Grid.Row="2" Grid.Column="1" Spacing="4" VerticalOptions="Center">
-                    <Label Text="Unmarketable" FontSize="12" VerticalOptions="Center" Opacity="0.7" />
-                    <Switch IsToggled="{Binding ShowUnmarketable}" OnColor="{StaticResource Primary}" />
-                </HorizontalStackLayout>
-            </Grid>
+            <!-- Search, location and the filter panel -->
+            <VerticalStackLayout Grid.Row="4" Spacing="2">
+                <SearchBar Placeholder="Search items..." Text="{Binding SearchText}" />
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                    <Picker Title="Location"
+                            ItemsSource="{Binding LocationChoices}"
+                            ItemDisplayBinding="{Binding Label}"
+                            SelectedItem="{Binding SelectedLocation}" />
+                    <Button Grid.Column="1" Text="{Binding FiltersButtonText}" FontSize="13" Padding="12,4" CornerRadius="8"
+                            VerticalOptions="Center" Command="{Binding ToggleFiltersCommand}" />
+                </Grid>
+
+                <Border Style="{StaticResource Card}" IsVisible="{Binding ShowFilters}" Padding="10,4">
+                    <VerticalStackLayout Spacing="0">
+                        <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                            <Picker Title="Type"
+                                    ItemsSource="{Binding CategoryChoices}"
+                                    ItemDisplayBinding="{Binding Label}"
+                                    SelectedItem="{Binding SelectedCategory}" />
+                            <Picker Grid.Column="1" Title="Rarity"
+                                    ItemsSource="{Binding RarityChoices}"
+                                    ItemDisplayBinding="{Binding Label}"
+                                    SelectedItem="{Binding SelectedRarity}" />
+                        </Grid>
+                        <Picker Title="Sort by"
+                                ItemsSource="{Binding SortChoices}"
+                                ItemDisplayBinding="{Binding Label}"
+                                SelectedItem="{Binding SelectedSort}" />
+                        <Grid ColumnDefinitions="*,Auto">
+                            <Label Text="Show unmarketable items" FontSize="13" VerticalOptions="Center" />
+                            <Switch Grid.Column="1" IsToggled="{Binding ShowUnmarketable}" OnColor="{StaticResource Primary}" />
+                        </Grid>
+                        <Grid ColumnDefinitions="*,Auto">
+                            <Label Text="Group by type" FontSize="13" VerticalOptions="Center" />
+                            <Switch Grid.Column="1" IsToggled="{Binding GroupByCategory}" OnColor="{StaticResource Primary}" />
+                        </Grid>
+                        <Button Text="Clear filters" FontSize="12" Padding="10,2" CornerRadius="8" HorizontalOptions="End"
+                                Margin="0,4,0,6" Command="{Binding ClearFiltersCommand}" />
+                    </VerticalStackLayout>
+                </Border>
+            </VerticalStackLayout>
 
             <RefreshView Grid.Row="5"
                          IsRefreshing="{Binding IsRefreshing}"
                          Command="{Binding RefreshCommand}"
                          RefreshColor="{StaticResource Primary}">
-                <CollectionView ItemsSource="{Binding Items}" SelectionMode="None">
+                <CollectionView ItemsSource="{Binding Groups}" IsGrouped="True" SelectionMode="None">
+
+                    <CollectionView.GroupHeaderTemplate>
+                        <DataTemplate>
+                            <Grid ColumnDefinitions="*,Auto" Padding="4,10,4,2" IsVisible="{Binding HasHeader}">
+                                <Label Text="{Binding Name}" FontSize="15" FontAttributes="Bold" TextColor="{StaticResource Primary}" />
+                                <Label Grid.Column="1" Text="{Binding Summary}" FontSize="12" Opacity="0.7" VerticalOptions="Center" />
+                            </Grid>
+                        </DataTemplate>
+                    </CollectionView.GroupHeaderTemplate>
 
                     <CollectionView.ItemsLayout>
                         <LinearItemsLayout Orientation="Vertical" ItemSpacing="8" />
                     </CollectionView.ItemsLayout>
 
                     <CollectionView.EmptyView>
-                        <Label Text="No items. Pull down to load your inventory from Steam, or adjust your search."
+                        <Label Text="No items. Pull down to load your inventory from Steam, or adjust your search and filters."
                                HorizontalTextAlignment="Center"
                                Margin="24"
                                Opacity="0.7" />

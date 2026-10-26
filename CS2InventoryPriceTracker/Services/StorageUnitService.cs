@@ -60,6 +60,8 @@ public class StorageUnitService(SteamSessionService session, ItemCatalog catalog
                         Name = resolved.Name,
                         CustomName = item.CustomName,
                         Type = resolved.Type,
+                        Category = resolved.Category,
+                        Rarity = resolved.Rarity,
                         RarityColor = resolved.RarityColor,
                         IconPath = resolved.IconPath,
                         Quantity = 1,

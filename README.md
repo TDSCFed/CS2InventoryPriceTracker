@@ -7,7 +7,8 @@ Android app (.NET MAUI) to see a Counter-Strike 2 Steam inventory and the curren
 - Loads the CS2 inventory of a public Steam profile (SteamID64, profile link or custom URL name)
 - Current price of every marketable item on the Steam Community Market, Skinport and Market.CSGO, plus quantity and
   total value (choose which market the totals use, or the cheapest one)
-- Search, sort (value, unit price, name, quantity) and hide unmarketable items
+- Search, filters by type (knives, gloves, rifles, stickers, cases...) and rarity, sort (value, unit price, name,
+  quantity), hide unmarketable items and group the list by type
 - Optional Steam login to see what is inside storage units, with the value of each storage unit
 - History tab: value of the whole account or of one storage unit over time (7/30/90 days or all), on any market
 - Item page: price on every market with links to them, price history, and for each copy the float, pattern,
