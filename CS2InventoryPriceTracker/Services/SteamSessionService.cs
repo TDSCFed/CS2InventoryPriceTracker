@@ -13,8 +13,46 @@ public record CasketContents(GcItem Casket, IReadOnlyList<GcItem> Items);
 /// (the public Steam inventory does not show it).
 /// Only the Steam refresh token is kept (in the platform secure storage); the password is never stored.
 /// </summary>
-public class SteamSessionService(SettingsService settings)
+public class SteamSessionService(SettingsService settings, ItemCatalog catalog, HttpClient http)
 {
+    /// <summary>Used when the CS2 client version can't be found anywhere else.</summary>
+    private const uint FallbackClientVersion = 2000935;
+
+    private const string SteamInfUrl =
+        "https://raw.githubusercontent.com/SteamDatabase/GameTracking-CS2/master/game/csgo/steam.inf";
+
+    /// <summary>
+    /// The CS2 Game Coordinator rejects a hello without a recent client version (ClientLogonFatalError),
+    /// so the current one is read from the game files tracked by SteamDatabase, falling back to the bundled value.
+    /// </summary>
+    private async Task<uint> GetClientVersionAsync(CancellationToken ct)
+    {
+        try
+        {
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            timeout.CancelAfter(TimeSpan.FromSeconds(8));
+            var text = await http.GetStringAsync(SteamInfUrl, timeout.Token);
+            foreach (var line in text.Split('\n'))
+            {
+                if (line.StartsWith("ClientVersion=", StringComparison.Ordinal)
+                    && uint.TryParse(line["ClientVersion=".Length..].Trim(), out var version))
+                {
+                    SteamDiagnostics.Write($"CS2 client version {version} (steam.inf)");
+                    return version;
+                }
+            }
+        }
+        catch (Exception e) when (!ct.IsCancellationRequested)
+        {
+            SteamDiagnostics.Write($"Couldn't read steam.inf: {e.GetType().Name}");
+        }
+
+        var bundled = await catalog.GetClientVersionAsync();
+        var result = bundled != 0 ? bundled : FallbackClientVersion;
+        SteamDiagnostics.Write($"CS2 client version {result} (bundled)");
+        return result;
+    }
+
     private const string RefreshTokenKey = "steam_refresh_token";
     private const string GuardDataKey = "steam_guard_data";
 
@@ -146,7 +184,8 @@ public class SteamSessionService(SettingsService settings)
 
         progress?.Report("Connecting to CS2…");
         connection.Stage = "connecting to CS2";
-        var inventory = await connection.StartGameCoordinatorAsync(ct);
+        var clientVersion = await GetClientVersionAsync(ct);
+        var inventory = await connection.StartGameCoordinatorAsync(clientVersion, ct);
 
         var caskets = inventory.Values
             .Where(i => i.DefIndex == ItemCatalog.StorageUnitDefIndex)
@@ -209,6 +248,7 @@ internal sealed class SteamConnection : IAsyncDisposable
     private TaskCompletionSource? _casketLoaded;
     private ulong _casketLoading;
     private bool _playingBlocked;
+    private string? _fatalError;
 
     /// <summary>Items received from the Game Coordinator, by item id.</summary>
     private readonly Dictionary<ulong, GcItem> _items = new();
@@ -365,7 +405,7 @@ internal sealed class SteamConnection : IAsyncDisposable
     }
 
     /// <summary>Starts CS2 (without a game window) and waits for the Game Coordinator to send the inventory.</summary>
-    public async Task<IReadOnlyDictionary<ulong, GcItem>> StartGameCoordinatorAsync(CancellationToken ct)
+    public async Task<IReadOnlyDictionary<ulong, GcItem>> StartGameCoordinatorAsync(uint clientVersion, CancellationToken ct)
     {
         _welcome = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         SetGamesPlayed(Cs2AppId);
@@ -377,9 +417,12 @@ internal sealed class SteamConnection : IAsyncDisposable
         {
             if (_playingBlocked)
                 throw new SteamException("CS2 is open on another device. Close it there and try again.");
+            if (_fatalError is not null)
+                throw new SteamException($"CS2 refused the connection: {_fatalError}");
 
             SteamDiagnostics.Write($"Sending ClientHello to the CS2 Game Coordinator (attempt {attempt + 1})");
             var hello = new ClientGCMsgProtobuf<CMsgClientHello>((uint)EGCBaseClientMsg.k_EMsgGCClientHello);
+            hello.Body.version = clientVersion;
             _gc.Send(hello, Cs2AppId);
 
             try
@@ -396,6 +439,8 @@ internal sealed class SteamConnection : IAsyncDisposable
         {
             if (_playingBlocked)
                 throw new SteamException("CS2 is open on another device. Close it there and try again.");
+            if (_fatalError is not null)
+                throw new SteamException($"CS2 refused the connection: {_fatalError}");
             throw new SteamException("The CS2 Game Coordinator didn't answer. Try again in a few minutes.");
         }
 
@@ -445,6 +490,16 @@ internal sealed class SteamConnection : IAsyncDisposable
 
         switch (callback.EMsg)
         {
+            case (uint)ECsgoGCMsg.k_EMsgGCCStrike15_v2_ClientLogonFatalError:
+            {
+                var error = new ClientGCMsgProtobuf<CMsgGCCStrike15_v2_ClientLogonFatalError>(callback.Message);
+                _fatalError = string.IsNullOrWhiteSpace(error.Body.message)
+                    ? $"error {error.Body.errorcode}"
+                    : $"{error.Body.message} (error {error.Body.errorcode})";
+                SteamDiagnostics.Write($"Logon fatal error: {_fatalError}");
+                break;
+            }
+
             case (uint)EGCBaseClientMsg.k_EMsgGCClientWelcome:
             {
                 var welcome = new ClientGCMsgProtobuf<CMsgClientWelcome>(callback.Message);

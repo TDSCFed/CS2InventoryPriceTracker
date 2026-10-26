@@ -18,6 +18,9 @@ import sys
 import urllib.request
 
 SOURCE = "https://raw.githubusercontent.com/ByMykel/CSGO-API/main/public/api/en/{}.json"
+STEAM_INF = "https://raw.githubusercontent.com/SteamDatabase/GameTracking-CS2/master/game/csgo/steam.inf"
+# Fallback when steam.inf can't be read. The Game Coordinator rejects a ClientHello without a client version.
+DEFAULT_CLIENT_VERSION = 2000935
 OUTPUT = os.path.join(os.path.dirname(__file__), "..", "CS2InventoryPriceTracker", "Resources", "Raw", "items.json")
 STEAM_IMAGE_PREFIX = "https://community.akamai.steamstatic.com/economy/image/"
 
@@ -28,6 +31,23 @@ def load(name, folder):
             return json.load(f)
     with urllib.request.urlopen(SOURCE.format(name), timeout=120) as response:
         return json.load(response)
+
+
+def client_version(folder):
+    """CS2 client version (ClientVersion in steam.inf), sent in the Game Coordinator hello."""
+    try:
+        if folder and os.path.exists(os.path.join(folder, "steam.inf")):
+            with open(os.path.join(folder, "steam.inf"), encoding="utf-8") as f:
+                text = f.read()
+        else:
+            with urllib.request.urlopen(STEAM_INF, timeout=60) as response:
+                text = response.read().decode("utf-8")
+        for line in text.splitlines():
+            if line.startswith("ClientVersion="):
+                return int(line.split("=", 1)[1].strip())
+    except Exception as e:  # noqa: BLE001 - any failure falls back to the default
+        print(f"Couldn't read steam.inf ({e}); using {DEFAULT_CLIENT_VERSION}")
+    return DEFAULT_CLIENT_VERSION
 
 
 def image(url):
@@ -48,7 +68,7 @@ def strip_star(name):
 
 def main():
     folder = sys.argv[1] if len(sys.argv) > 1 else None
-    out = {"version": 1, "defs": {}, "skins": {}, "stickers": {}, "patches": {}, "graffiti": {}, "music": {}, "charms": {}}
+    out = {"version": 1, "clientVersion": client_version(folder), "defs": {}, "skins": {}, "stickers": {}, "patches": {}, "graffiti": {}, "music": {}, "charms": {}}
 
     # Plain items by definition index. Kind: k = knife, g = gloves (both get the ★ prefix), w = weapon.
     for w in load("base_weapons", folder):
@@ -94,6 +114,7 @@ def main():
         json.dump(out, f, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
 
     counts = ", ".join(f"{k}: {len(v)}" for k, v in out.items() if isinstance(v, dict))
+    counts += f", client version {out['clientVersion']}"
     print(f"Wrote {os.path.normpath(OUTPUT)} ({os.path.getsize(OUTPUT) // 1024} KB; {counts})")
 
 

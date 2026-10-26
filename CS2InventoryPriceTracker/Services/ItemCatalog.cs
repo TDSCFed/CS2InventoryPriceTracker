@@ -50,7 +50,8 @@ public class ItemCatalog
         Dictionary<string, string[]> Patches,
         Dictionary<string, string[]> Graffiti,
         Dictionary<string, string[]> Music,
-        Dictionary<string, string[]> Charms);
+        Dictionary<string, string[]> Charms,
+        uint ClientVersion);
 
     private async Task<Tables> GetTablesAsync()
     {
@@ -73,7 +74,8 @@ public class ItemCatalog
 
                 _tables = new Tables(
                     Read("defs"), Read("skins"), Read("stickers"), Read("patches"),
-                    Read("graffiti"), Read("music"), Read("charms"));
+                    Read("graffiti"), Read("music"), Read("charms"),
+                    data.TryGetValue("clientVersion", out var version) && version.TryGetUInt32(out var v) ? v : 0);
             }
             return _tables;
         }
@@ -82,6 +84,9 @@ public class ItemCatalog
             _loadLock.Release();
         }
     }
+
+    /// <summary>CS2 client version from the game files when items.json was generated (0 if unknown).</summary>
+    public async Task<uint> GetClientVersionAsync() => (await GetTablesAsync()).ClientVersion;
 
     public async Task<ResolvedItem> ResolveAsync(GcItem item)
     {
