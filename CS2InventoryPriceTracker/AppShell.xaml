@@ -9,6 +9,7 @@
 
     <TabBar>
         <ShellContent Title="Inventory" Icon="tab_inventory.png" Route="inventory" ContentTemplate="{DataTemplate views:InventoryPage}" />
+        <ShellContent Title="History" Icon="tab_history.png" Route="history" ContentTemplate="{DataTemplate views:HistoryPage}" />
         <ShellContent Title="Account" Icon="tab_settings.png" Route="account" ContentTemplate="{DataTemplate views:SettingsPage}" />
     </TabBar>
 

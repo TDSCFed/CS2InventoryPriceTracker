@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="CS2InventoryPriceTracker.Views.HistoryPage"
+             Title="History">
+
+    <ScrollView>
+        <VerticalStackLayout Padding="12,8" Spacing="10">
+
+            <!-- Current value and change over the selected range -->
+            <Border Style="{StaticResource Card}" Padding="12">
+                <VerticalStackLayout Spacing="2">
+                    <Label Text="{Binding SelectedScope.Label}" FontSize="13" Opacity="0.7" />
+                    <Label Text="{Binding CurrentValueText}" FontSize="28" FontAttributes="Bold"
+                           TextColor="{StaticResource PriceGreen}" />
+                    <Label Text="{Binding ChangeText}" FontSize="13" TextColor="{Binding ChangeColor}" />
+                </VerticalStackLayout>
+            </Border>
+
+            <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                <Picker Title="Range"
+                        ItemsSource="{Binding RangeChoices}"
+                        ItemDisplayBinding="{Binding Label}"
+                        SelectedItem="{Binding SelectedRange}" />
+                <Picker Grid.Column="1" Title="Market"
+                        ItemsSource="{Binding MarketChoices}"
+                        ItemDisplayBinding="{Binding Label}"
+                        SelectedItem="{Binding SelectedMarket}" />
+            </Grid>
+            <Picker Title="Location"
+                    ItemsSource="{Binding ScopeChoices}"
+                    ItemDisplayBinding="{Binding Label}"
+                    SelectedItem="{Binding SelectedScope}" />
+
+            <Border Style="{StaticResource Card}" Padding="8">
+                <GraphicsView x:Name="ChartView" HeightRequest="260" />
+            </Border>
+
+            <Label Text="{Binding SummaryText}" FontSize="12" Opacity="0.7" />
+            <Label FontSize="12" Opacity="0.6"
+                   Text="The app saves the value once a day, each time it updates prices, for the whole account and each storage unit. Open the app regularly to fill the chart." />
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

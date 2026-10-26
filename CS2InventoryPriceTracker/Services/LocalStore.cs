@@ -24,6 +24,8 @@ public class LocalStore
                 await db.CreateTableAsync<InventoryEntry>();
                 await db.CreateTableAsync<PriceEntry>();
                 await db.CreateTableAsync<StorageUnit>();
+                await db.CreateTableAsync<ValueSnapshot>();
+                await db.CreateTableAsync<PriceHistoryEntry>();
                 _db = db;
             }
             return _db;
@@ -100,9 +102,57 @@ public class LocalStore
         return rows.GroupBy(p => p.MarketHashName).ToDictionary(g => g.Key, g => g.ToList());
     }
 
+    /// <summary>Saves a price, and today's point of its price history.</summary>
     public async Task SavePriceAsync(PriceEntry price)
     {
         var db = await GetDbAsync();
         await db.InsertOrReplaceAsync(price);
+
+        if (price.BestPrice is { } best)
+        {
+            var date = DateTime.Now.ToString("yyyy-MM-dd");
+            await db.InsertOrReplaceAsync(new PriceHistoryEntry
+            {
+                Key = PriceHistoryEntry.MakeKey(price.Source, price.MarketHashName, date),
+                Source = price.Source,
+                MarketHashName = price.MarketHashName,
+                Date = date,
+                Price = best
+            });
+        }
+    }
+
+    /// <summary>Daily prices of one item on every market, oldest first.</summary>
+    public async Task<List<PriceHistoryEntry>> GetPriceHistoryAsync(string marketHashName)
+    {
+        var db = await GetDbAsync();
+        var rows = await db.Table<PriceHistoryEntry>().Where(p => p.MarketHashName == marketHashName).ToListAsync();
+        return rows.OrderBy(p => p.Date, StringComparer.Ordinal).ToList();
+    }
+
+    public async Task SaveSnapshotsAsync(IEnumerable<ValueSnapshot> snapshots)
+    {
+        var db = await GetDbAsync();
+        var list = snapshots.ToList();
+        await db.RunInTransactionAsync(conn =>
+        {
+            foreach (var snapshot in list)
+                conn.InsertOrReplace(snapshot);
+        });
+    }
+
+    /// <summary>Every snapshot of one day.</summary>
+    public async Task<List<ValueSnapshot>> GetSnapshotsForDateAsync(string date)
+    {
+        var db = await GetDbAsync();
+        return await db.Table<ValueSnapshot>().Where(s => s.Date == date).ToListAsync();
+    }
+
+    /// <summary>Daily values of one scope (the account or a storage unit), oldest first.</summary>
+    public async Task<List<ValueSnapshot>> GetSnapshotsAsync(string scope)
+    {
+        var db = await GetDbAsync();
+        var rows = await db.Table<ValueSnapshot>().Where(s => s.Scope == scope).ToListAsync();
+        return rows.OrderBy(s => s.Date, StringComparer.Ordinal).ToList();
     }
 }

@@ -76,6 +76,8 @@ public partial class InventoryViewModel : ObservableObject
             var running = _prices.IsRunning;
             if (_pricesWereRunning && !running)
                 ApplyView();
+            if (!running)
+                _ = RecordSnapshotsAsync();
             _pricesWereRunning = running;
         });
     }
@@ -380,6 +382,57 @@ public partial class InventoryViewModel : ObservableObject
                 card.SetPrice(price);
             UpdateTotals();
         });
+    }
+
+    /// <summary>
+    /// Saves today's value of the account and of each storage unit on every market, for the History tab.
+    /// A market still refreshing keeps the value saved earlier today, so half-loaded prices are never recorded.
+    /// </summary>
+    private async Task RecordSnapshotsAsync()
+    {
+        if (!HasAccount || _all.Count == 0)
+            return;
+
+        try
+        {
+            var date = DateTime.Now.ToString("yyyy-MM-dd");
+            var existing = (await _store.GetSnapshotsForDateAsync(date)).ToDictionary(s => s.Scope);
+            var running = _prices.Markets.Where(m => m.IsRunning).Select(m => m.Provider.Source).ToHashSet();
+            var sources = PriceSources.All.Append(PriceSources.Lowest).ToList();
+
+            var scopes = new List<(string Scope, List<ItemCard> Cards)> { (ValueSnapshot.AccountScope, _all) };
+            scopes.AddRange(_units.Select(u => (u.Id, _all.Where(c => c.Entry.ContainerId == u.Id).ToList())));
+
+            var snapshots = new List<ValueSnapshot>();
+            foreach (var (scope, cards) in scopes)
+            {
+                var snapshot = existing.GetValueOrDefault(scope) ?? new ValueSnapshot
+                {
+                    Key = ValueSnapshot.MakeKey(date, scope),
+                    Date = date,
+                    Scope = scope
+                };
+
+                foreach (var source in sources)
+                {
+                    var stillLoading = source == PriceSources.Lowest ? running.Count > 0 : running.Contains(source);
+                    if (stillLoading)
+                        continue;
+
+                    var values = cards.Select(c => c.ValueFor(source)).Where(v => v is not null).ToList();
+                    snapshot.SetValue(source, values.Count > 0 ? values.Sum() : null);
+                }
+
+                snapshot.UpdatedAt = DateTime.UtcNow;
+                snapshots.Add(snapshot);
+            }
+
+            await _store.SaveSnapshotsAsync(snapshots);
+        }
+        catch (Exception e)
+        {
+            SteamDiagnostics.Write($"Couldn't save the value history: {e.Message}");
+        }
     }
 
     private IEnumerable<ItemCard> InSelectedLocation()

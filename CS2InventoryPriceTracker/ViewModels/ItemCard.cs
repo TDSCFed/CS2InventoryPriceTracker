@@ -103,19 +103,23 @@ public partial class ItemCard : ObservableObject
     }
 
     /// <summary>The price used for the value: the selected market's, or the cheapest one for "lowest".</summary>
-    public PriceEntry? Price
-    {
-        get
-        {
-            if (_priceSource != PriceSources.Lowest)
-                return _prices.GetValueOrDefault(_priceSource);
+    public PriceEntry? Price => PriceFor(_priceSource);
 
-            return _prices.Values
-                .Where(p => p.BestPrice is not null)
-                .MinBy(p => p.BestPrice)
-                ?? _prices.Values.FirstOrDefault();
-        }
+    /// <summary>The price on one market, or the cheapest one for "lowest".</summary>
+    public PriceEntry? PriceFor(string source)
+    {
+        if (source != PriceSources.Lowest)
+            return _prices.GetValueOrDefault(source);
+
+        return _prices.Values
+            .Where(p => p.BestPrice is not null)
+            .MinBy(p => p.BestPrice)
+            ?? _prices.Values.FirstOrDefault();
     }
+
+    /// <summary>Value of all copies on one market (items only; storage units count through their contents).</summary>
+    public double? ValueFor(string source)
+        => Entry.Marketable && !Entry.IsStorageUnit ? PriceFor(source)?.BestPrice * Entry.Quantity : null;
 
     /// <summary>True once the selected market (any market for "lowest") answered for this item.</summary>
     public bool HasPrice => _priceSource == PriceSources.Lowest ? _prices.Count > 0 : _prices.ContainsKey(_priceSource);
