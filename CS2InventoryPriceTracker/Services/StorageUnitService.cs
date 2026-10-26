@@ -30,11 +30,13 @@ public class StorageUnitService(SteamSessionService session, ItemCatalog catalog
             foreach (var casket in caskets)
             {
                 var containerId = casket.Casket.Id.ToString();
+                var casketInfo = await catalog.ResolveAsync(casket.Casket);
                 units.Add(new StorageUnit
                 {
                     Id = containerId,
                     Name = casket.Casket.CustomName,
                     ItemCount = casket.Items.Count,
+                    IconPath = casketInfo.IconPath,
                     UpdatedAt = DateTime.UtcNow
                 });
 

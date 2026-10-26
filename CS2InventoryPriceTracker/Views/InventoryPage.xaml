@@ -7,7 +7,6 @@
 
     <ContentPage.ToolbarItems>
         <ToolbarItem Text="Update prices" Order="Secondary" Command="{Binding RefreshPricesCommand}" />
-        <ToolbarItem Text="Load storage units" Order="Secondary" Command="{Binding LoadStorageUnitsCommand}" />
     </ContentPage.ToolbarItems>
 
     <Grid>

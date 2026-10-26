@@ -98,6 +98,9 @@ public class StorageUnit
 
     public int ItemCount { get; set; }
 
+    /// <summary>Icon of the storage unit item.</summary>
+    public string? IconPath { get; set; }
+
     public DateTime UpdatedAt { get; set; }
 
     [Ignore]

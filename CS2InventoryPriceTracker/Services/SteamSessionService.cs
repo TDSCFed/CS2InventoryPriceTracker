@@ -221,6 +221,7 @@ internal sealed class SteamConnection : IAsyncDisposable
     private const uint Cs2AppId = 730;
 
     private const uint AttrPaintIndex = 6;
+    private const uint AttrCustomName = 111;
     private const uint AttrPaintWear = 8;
     private const uint AttrKillEater = 80;
     private const uint AttrStickerSlot0 = 113;
@@ -578,6 +579,7 @@ internal sealed class SteamConnection : IAsyncDisposable
         int? paintIndex = null, itemsCount = null;
         float? wear = null;
         uint? sticker = null, music = null, charm = null, tint = null;
+        var customName = string.IsNullOrEmpty(item.custom_name) ? null : item.custom_name;
         var statTrak = false;
 
         foreach (var attribute in item.attribute)
@@ -585,6 +587,7 @@ internal sealed class SteamConnection : IAsyncDisposable
             switch (attribute.def_index)
             {
                 case AttrPaintIndex: paintIndex = (int)Math.Floor(AsFloat(attribute)); break;
+                case AttrCustomName: customName ??= AsString(attribute); break;
                 case AttrPaintWear: wear = AsFloat(attribute); break;
                 case AttrKillEater: statTrak = true; break;
                 case AttrStickerSlot0: sticker = AsUInt(attribute); break;
@@ -605,7 +608,7 @@ internal sealed class SteamConnection : IAsyncDisposable
             item.id,
             item.def_index,
             item.quality,
-            string.IsNullOrEmpty(item.custom_name) ? null : item.custom_name,
+            customName,
             paintIndex,
             wear,
             sticker,
@@ -615,6 +618,46 @@ internal sealed class SteamConnection : IAsyncDisposable
             statTrak,
             casketId,
             itemsCount);
+    }
+
+    /// <summary>
+    /// String attributes (like the name given to a storage unit) are stored as a small protobuf message
+    /// with the text in field 1; plain UTF-8 is accepted too.
+    /// </summary>
+    private static string? AsString(CSOEconItemAttribute attribute)
+    {
+        var bytes = attribute.value_bytes;
+        if (bytes is null || bytes.Length == 0)
+            return null;
+
+        try
+        {
+            if (bytes[0] == 0x0A)
+            {
+                // Field 1, length-delimited: read the varint length, then the text.
+                var length = 0;
+                var shift = 0;
+                var index = 1;
+                while (index < bytes.Length)
+                {
+                    var b = bytes[index++];
+                    length |= (b & 0x7F) << shift;
+                    if ((b & 0x80) == 0)
+                        break;
+                    shift += 7;
+                }
+
+                if (length > 0 && index + length <= bytes.Length)
+                    return System.Text.Encoding.UTF8.GetString(bytes, index, length);
+            }
+
+            var text = System.Text.Encoding.UTF8.GetString(bytes).Trim('\0', ' ');
+            return text.Length == 0 ? null : text;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private static uint AsUInt(CSOEconItemAttribute attribute)

@@ -59,7 +59,8 @@ public partial class InventoryViewModel : ObservableObject
                 .ThenBy(i => i.Title, StringComparer.CurrentCultureIgnoreCase))
         ];
         _selectedSort = SortChoices[0];
-        _selectedLocation = Everything;
+        _selectedLocation = MainInventory;
+        LocationChoices.Add(MainInventory);
         LocationChoices.Add(Everything);
 
         _prices.PriceUpdated += OnPriceUpdated;
@@ -184,8 +185,14 @@ public partial class InventoryViewModel : ObservableObject
         var prices = await _store.GetPricesAsync(_prices.Primary.Source);
         _units = (await _store.GetStorageUnitsAsync())
             .OrderBy(u => u.DisplayName, StringComparer.CurrentCultureIgnoreCase)
+            .ThenByDescending(u => u.ItemCount)
             .ToList();
-        var unitNames = _units.ToDictionary(u => u.Id, u => u.DisplayName);
+
+        // Storage units without a name are told apart by a number.
+        var unnamed = 0;
+        var unitNames = _units.ToDictionary(
+            u => u.Id,
+            u => string.IsNullOrEmpty(u.Name) ? $"Storage Unit #{++unnamed}" : u.Name!);
 
         _all = entries
             .Select(e => new ItemCard(
@@ -215,25 +222,23 @@ public partial class InventoryViewModel : ObservableObject
                 Key = $"storage|{unit.Id}",
                 MarketHashName = "Storage Unit",
                 Name = "Storage Unit",
-                CustomName = unit.Name,
+                CustomName = unitNames[unit.Id],
                 Type = "Storage Unit",
+                IconPath = unit.IconPath,
                 Quantity = 1,
                 IsStorageUnit = true
             }, null, null) { StorageUnitId = unit.Id });
         }
 
         var selectedId = SelectedLocation?.ContainerId;
-        var selectedEverything = SelectedLocation?.Everything ?? true;
+        var selectedEverything = SelectedLocation?.Everything ?? false;
         LocationChoices.Clear();
+        LocationChoices.Add(MainInventory);
         LocationChoices.Add(Everything);
-        if (_units.Count > 0)
-        {
-            LocationChoices.Add(MainInventory);
-            foreach (var unit in _units)
-                LocationChoices.Add(new LocationChoice($"📦 {unit.DisplayName} ({unit.ItemCount})", false, unit.Id));
-        }
+        foreach (var unit in _units)
+            LocationChoices.Add(new LocationChoice($"📦 {unitNames[unit.Id]} ({unit.ItemCount})", false, unit.Id));
         SelectedLocation = LocationChoices.FirstOrDefault(l => l.Everything == selectedEverything && l.ContainerId == selectedId)
-                           ?? Everything;
+                           ?? MainInventory;
 
         ApplyView();
         UpdateTotals();
