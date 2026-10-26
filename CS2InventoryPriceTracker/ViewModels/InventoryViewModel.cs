@@ -146,8 +146,8 @@ public partial class InventoryViewModel : ObservableObject
     {
         if (value is not null)
         {
-            ApplyView();
             UpdateTotals();
+            ApplyView();
         }
     }
 
@@ -170,8 +170,8 @@ public partial class InventoryViewModel : ObservableObject
             _priceSource = _settings.PriceSource;
             foreach (var card in _all)
                 card.PriceSource = _priceSource;
-            ApplyView();
             UpdateTotals();
+            ApplyView();
             UpdateStatus();
         }
 
@@ -257,8 +257,8 @@ public partial class InventoryViewModel : ObservableObject
         SelectedLocation = LocationChoices.FirstOrDefault(l => l.Everything == selectedEverything && l.ContainerId == selectedId)
                            ?? MainInventory;
 
-        ApplyView();
         UpdateTotals();
+        ApplyView();
         UpdateStatus();
     }
 
@@ -390,8 +390,29 @@ public partial class InventoryViewModel : ObservableObject
 
     private void UpdateTotals()
     {
+        // Value of each storage unit, shown on its card in the main inventory.
+        var byContainer = _all
+            .Where(c => c.Entry.ContainerId is not null)
+            .GroupBy(c => c.Entry.ContainerId!)
+            .ToDictionary(g => g.Key, g => (
+                Count: g.Sum(c => c.Entry.Quantity),
+                Value: g.Sum(c => c.TotalValue ?? 0),
+                Marketable: g.Any(c => c.Entry.Marketable)));
+        foreach (var card in _all.Where(c => c.StorageUnitId is not null))
+        {
+            var found = byContainer.TryGetValue(card.StorageUnitId!, out var info);
+            card.StorageSummary = found ? $"{info.Count} items" : "empty";
+            card.HasMarketableContents = found && info.Marketable;
+            card.ContentsValue = found && info.Marketable ? info.Value : null;
+        }
+
+        // In "Everything" the items inside storage units are listed themselves, so the storage unit cards
+        // are left out of the total; elsewhere a storage unit counts with the value of its contents.
         var cards = InSelectedLocation().ToList();
-        TotalValueText = ItemCard.FormatEuro(cards.Sum(c => c.TotalValue ?? 0));
+        var everything = SelectedLocation?.Everything ?? false;
+        TotalValueText = ItemCard.FormatEuro(cards
+            .Where(c => !(everything && c.Entry.IsStorageUnit))
+            .Sum(c => c.TotalValue ?? 0));
 
         var copies = cards.Sum(c => c.Entry.Quantity);
         var marketable = cards.Where(c => c.Entry.Marketable).ToList();
@@ -399,18 +420,6 @@ public partial class InventoryViewModel : ObservableObject
         SummaryText = marketable.Count == priced
             ? $"{copies} items · {cards.Count} different"
             : $"{copies} items · {priced} of {marketable.Count} prices loaded";
-
-        // Value of each storage unit, shown on its card in the main inventory.
-        var byContainer = _all
-            .Where(c => c.Entry.ContainerId is not null)
-            .GroupBy(c => c.Entry.ContainerId!)
-            .ToDictionary(g => g.Key, g => (Count: g.Sum(c => c.Entry.Quantity), Value: g.Sum(c => c.TotalValue ?? 0)));
-        foreach (var card in _all.Where(c => c.StorageUnitId is not null))
-        {
-            card.StorageSummary = byContainer.TryGetValue(card.StorageUnitId!, out var info)
-                ? $"{info.Count} items · {ItemCard.FormatEuro(info.Value)}"
-                : "empty";
-        }
     }
 
     private void UpdateStatus()
@@ -445,7 +454,7 @@ public partial class InventoryViewModel : ObservableObject
         var view = InSelectedLocation();
 
         if (!ShowUnmarketable)
-            view = view.Where(c => c.Entry.Marketable);
+            view = view.Where(c => c.IsSellable);
 
         var query = SearchText?.Trim();
         if (!string.IsNullOrEmpty(query))
