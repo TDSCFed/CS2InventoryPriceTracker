@@ -27,7 +27,20 @@ public partial class ItemCard : ObservableObject
 
     public string Title => string.IsNullOrEmpty(Entry.CustomName) ? Entry.Name : $"“{Entry.CustomName}”";
 
-    /// <summary>For a storage unit: "12 items · 34,56 €" once its contents are loaded.</summary>
+    /// <summary>For a storage unit: value of everything inside it, once its contents are loaded.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(UnitPrice), nameof(TotalValue), nameof(PriceText), nameof(HasTotal), nameof(TotalText))]
+    private double? _contentsValue;
+
+    /// <summary>For a storage unit: true when at least one item inside it can be sold.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsSellable))]
+    private bool _hasMarketableContents;
+
+    /// <summary>Can be sold: a marketable item, or a storage unit with marketable items inside.</summary>
+    public bool IsSellable => Entry.Marketable || (Entry.IsStorageUnit && HasMarketableContents);
+
+    /// <summary>For a storage unit: "12 items" once its contents are loaded.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(Subtitle))]
     private string? _storageSummary;
@@ -108,17 +121,17 @@ public partial class ItemCard : ObservableObject
     public bool HasPrice => _priceSource == PriceSources.Lowest ? _prices.Count > 0 : _prices.ContainsKey(_priceSource);
 
     /// <summary>Price of one copy in euros, if known.</summary>
-    public double? UnitPrice => Entry.Marketable ? Price?.BestPrice : null;
+    public double? UnitPrice => Entry.IsStorageUnit ? ContentsValue : Entry.Marketable ? Price?.BestPrice : null;
 
     /// <summary>Price of all copies in euros, if known.</summary>
-    public double? TotalValue => UnitPrice * Entry.Quantity;
+    public double? TotalValue => Entry.IsStorageUnit ? ContentsValue : UnitPrice * Entry.Quantity;
 
     public string PriceText
     {
         get
         {
             if (Entry.IsStorageUnit)
-                return "";
+                return HasMarketableContents ? FormatEuro(ContentsValue) : "";
             if (!Entry.Marketable)
                 return "Not marketable";
             var price = Price;
