@@ -12,6 +12,8 @@ Android app (.NET MAUI) to see a Counter-Strike 2 Steam inventory and the curren
 - Optional Steam login to see what is inside storage units, with the value of each storage unit and how full it is
   (out of 1000, with a warning from 950)
 - Trade-locked items (the hold after buying or trading) are marked with the unlock date and can be filtered
+- Doppler / Gamma Doppler phase of each copy (Ruby, Sapphire, Black Pearl, Emerald, Phase 1-4), read from the paint kit
+  through CS2 (needs the Steam login); prices are still per item, since the free market APIs don't split phases
 - History tab: value of the whole account or of one storage unit over time (7/30/90 days or all), on any market
 - Item page: price on every market with links to them, price history, and for each copy the float, pattern,
   stickers and StatTrak kills (from CS2, with the Steam login)

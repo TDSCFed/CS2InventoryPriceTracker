@@ -85,7 +85,8 @@ def strip_star(name):
 
 def main():
     folder = sys.argv[1] if len(sys.argv) > 1 else None
-    out = {"version": 1, "clientVersion": client_version(folder), "defs": {}, "skins": {}, "stickers": {}, "patches": {}, "graffiti": {}, "music": {}, "charms": {}}
+    out = {"version": 1, "clientVersion": client_version(folder), "defs": {}, "skins": {}, "stickers": {}, "patches": {},
+           "graffiti": {}, "music": {}, "charms": {}, "phases": {}}
 
     # Rows are [name, rarity color, image, ...]; see each table below for the extra columns.
 
@@ -115,6 +116,10 @@ def main():
         if weapon_id is None:
             continue
         paint = skin.get("paint_index") or "0"
+        # Doppler and Gamma Doppler phases (Ruby, Sapphire, Phase 1...) have their own paint kit:
+        # phases[<paint kit>] = [phase name].
+        if skin.get("phase"):
+            out["phases"][str(paint)] = [skin["phase"]]
         category = weapon_category((skin.get("category") or {}).get("name"), weapon_id)
         out["skins"][f"{weapon_id}_{paint}"] = [strip_star(skin["name"]), color(skin), image(skin.get("image")),
                                                 category, rarity_name(skin)]

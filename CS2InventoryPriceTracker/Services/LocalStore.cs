@@ -177,6 +177,14 @@ public class LocalStore
             .ToDictionary(g => g.Key, g => (g.Count(), g.Max(d => d.TradableAfter!.Value)));
     }
 
+    /// <summary>Doppler phases of the copies of each inventory line that has any, e.g. ["Ruby", "Phase 2", "Phase 2"].</summary>
+    public async Task<Dictionary<string, List<string>>> GetPhasesAsync()
+    {
+        var db = await GetDbAsync();
+        var rows = await db.Table<ItemDetail>().Where(d => d.Phase != null).ToListAsync();
+        return rows.GroupBy(d => d.EntryKey).ToDictionary(g => g.Key, g => g.Select(d => d.Phase!).ToList());
+    }
+
     /// <summary>Every snapshot of one day.</summary>
     public async Task<List<ValueSnapshot>> GetSnapshotsForDateAsync(string date)
     {

@@ -118,6 +118,8 @@ public partial class ItemDetailsViewModel : ObservableObject, IQueryAttributable
         {
             index++;
             var lines = new List<string>();
+            if (!string.IsNullOrEmpty(copy.Phase))
+                lines.Add($"💎 {copy.Phase}");
             if (copy.Float is { } f)
                 lines.Add($"Float {f.ToString("0.00000000", CultureInfo.InvariantCulture)}");
             if (copy.Seed is { } seed)
