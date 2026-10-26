@@ -22,7 +22,8 @@ public record GcItem(
     IReadOnlyList<uint>? Stickers = null);
 
 /// <summary>What the app shows for a <see cref="GcItem"/>.</summary>
-public record ResolvedItem(string MarketHashName, string Name, string? Type, string? RarityColor, string? IconPath, bool Marketable);
+public record ResolvedItem(string MarketHashName, string Name, string? Type, string? RarityColor, string? IconPath, bool Marketable,
+    string? Category = null, string? Rarity = null);
 
 /// <summary>
 /// Turns Game Coordinator item ids into names, using the table in Resources/Raw/items.json
@@ -107,10 +108,10 @@ public class ItemCatalog
         switch (item.DefIndex)
         {
             case StickerDefIndex when Find(t.Stickers, item.StickerKit) is { } sticker:
-                return FromRow(sticker, sticker[0], "Sticker", true);
+                return FromRow(sticker, sticker[0], true, "Sticker", Column(sticker, 3));
 
             case PatchDefIndex when Find(t.Patches, item.StickerKit) is { } patch:
-                return FromRow(patch, patch[0], "Patch", true);
+                return FromRow(patch, patch[0], true, "Patch", Column(patch, 3));
 
             case SealedGraffitiDefIndex or GraffitiDefIndex when item.StickerKit is { } kit:
             {
@@ -120,7 +121,7 @@ public class ItemCatalog
                     // Opened graffiti cannot be sold.
                     var sealedItem = item.DefIndex == SealedGraffitiDefIndex;
                     var name = sealedItem ? row[0] : row[0].Replace("Sealed Graffiti", "Graffiti");
-                    return FromRow(row, name, "Graffiti", sealedItem);
+                    return FromRow(row, name, sealedItem, "Graffiti", Column(row, 3));
                 }
                 break;
             }
@@ -128,11 +129,11 @@ public class ItemCatalog
             case MusicKitDefIndex when Find(t.Music, item.MusicId) is { } music:
             {
                 var name = item.Quality == QualityStatTrak ? "StatTrak™ " + music[0] : music[0];
-                return FromRow(music, name, "Music Kit", true);
+                return FromRow(music, name, true, "Music Kit", Column(music, 3));
             }
 
             case CharmDefIndex when Find(t.Charms, item.CharmId) is { } charm:
-                return FromRow(charm, charm[0], "Charm", true);
+                return FromRow(charm, charm[0], true, "Charm", Column(charm, 3));
         }
 
         var kind = defRow is { Length: > 3 } ? defRow[3] : "";
@@ -153,22 +154,30 @@ public class ItemCatalog
 
                 var wear = paint > 0 && item.PaintWear is { } w ? $" ({WearName(w)})" : "";
                 var name = prefix + skin[0] + wear;
-                var type = kind switch { "k" => "Knife", "g" => "Gloves", _ => "Weapon" };
-                return FromRow(skin, name, type, true);
+                var category = Column(skin, 3) ?? kind switch { "k" => "Knife", "g" => "Gloves", _ => "Other" };
+                return FromRow(skin, name, true, category, Column(skin, 4));
             }
 
             if (defRow is not null)
-                return FromRow(defRow, defRow[0], "Weapon", false); // Stock weapon without a skin.
+                return FromRow(defRow, defRow[0], false, Column(defRow, 4) ?? "Other", null); // Stock weapon without a skin.
         }
 
         if (defRow is not null)
-            return FromRow(defRow, defRow[0], null, kind == "m");
+            return FromRow(defRow, defRow[0], kind == "m", Column(defRow, 4) ?? "Other", Column(defRow, 5));
 
-        return new ResolvedItem($"Unknown item #{item.DefIndex}", $"Unknown item #{item.DefIndex}", null, null, null, false);
+        return new ResolvedItem($"Unknown item #{item.DefIndex}", $"Unknown item #{item.DefIndex}", null, null, null, false, "Other");
     }
 
-    private static ResolvedItem FromRow(string[] row, string name, string? type, bool marketable)
-        => new(name, name, type, row.Length > 1 && row[1].Length > 0 ? row[1] : null, row.Length > 2 && row[2].Length > 0 ? row[2] : null, marketable);
+    /// <summary>Builds the result from a table row; the type line reads like Steam's, e.g. "Classified Rifle".</summary>
+    private static ResolvedItem FromRow(string[] row, string name, bool marketable, string category, string? rarity)
+    {
+        var type = string.IsNullOrEmpty(rarity) ? category : $"{rarity} {category}";
+        return new ResolvedItem(name, name, type, Column(row, 1), Column(row, 2), marketable, category, rarity);
+    }
+
+    /// <summary>A column of a row, or null when missing or empty (older items.json files have fewer columns).</summary>
+    private static string? Column(string[] row, int index)
+        => row.Length > index && row[index].Length > 0 ? row[index] : null;
 
     private static string[]? Find(Dictionary<string, string[]> table, uint? id)
         => id is null ? null : Find(table, id.Value.ToString());

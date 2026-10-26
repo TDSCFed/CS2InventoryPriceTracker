@@ -6,6 +6,17 @@ using CS2InventoryPriceTracker.Services;
 
 namespace CS2InventoryPriceTracker.ViewModels;
 
+/// <summary>A value of the category or rarity filter; a null value means "all".</summary>
+public record FilterChoice(string Label, string? Value);
+
+/// <summary>A group of cards in the list (one per category when grouping is on, a single unnamed group otherwise).</summary>
+public class ItemGroup(string name, string summary, IEnumerable<ItemCard> cards) : List<ItemCard>(cards)
+{
+    public string Name { get; } = name;
+    public string Summary { get; } = summary;
+    public bool HasHeader => Name.Length > 0;
+}
+
 public record SortChoice(string Label, Func<IEnumerable<ItemCard>, IEnumerable<ItemCard>> Apply);
 
 /// <summary>Where items are: everything, only the main inventory, or one storage unit.</summary>
@@ -89,7 +100,96 @@ public partial class InventoryViewModel : ObservableObject
 
     public ObservableCollection<LocationChoice> LocationChoices { get; } = new();
 
-    public ObservableCollection<ItemCard> Items { get; } = new();
+    public ObservableCollection<ItemGroup> Groups { get; } = new();
+
+    public ObservableCollection<FilterChoice> CategoryChoices { get; } = [AllCategories];
+
+    public ObservableCollection<FilterChoice> RarityChoices { get; } = [AllRarities];
+
+    private static readonly FilterChoice AllCategories = new("All types", null);
+    private static readonly FilterChoice AllRarities = new("All rarities", null);
+
+    [ObservableProperty]
+    private FilterChoice _selectedCategory = AllCategories;
+
+    [ObservableProperty]
+    private FilterChoice _selectedRarity = AllRarities;
+
+    /// <summary>Lists the items under one header per category.</summary>
+    [ObservableProperty]
+    private bool _groupByCategory = Preferences.Get(GroupByCategoryKey, false);
+
+    /// <summary>Shows the filter panel (type, rarity, sort, switches).</summary>
+    [ObservableProperty]
+    private bool _showFilters;
+
+    [ObservableProperty]
+    private string _filtersButtonText = "Filters";
+
+    private const string GroupByCategoryKey = "group_by_category";
+
+    partial void OnSelectedCategoryChanged(FilterChoice value)
+    {
+        if (value is not null && !_updatingChoices)
+            ApplyView();
+    }
+
+    partial void OnSelectedRarityChanged(FilterChoice value)
+    {
+        if (value is not null && !_updatingChoices)
+            ApplyView();
+    }
+
+    partial void OnGroupByCategoryChanged(bool value)
+    {
+        Preferences.Set(GroupByCategoryKey, value);
+        ApplyView();
+    }
+
+    [RelayCommand]
+    private void ToggleFilters() => ShowFilters = !ShowFilters;
+
+    [RelayCommand]
+    private void ClearFilters()
+    {
+        SelectedCategory = AllCategories;
+        SelectedRarity = AllRarities;
+        ShowUnmarketable = true;
+    }
+
+    private bool _updatingChoices;
+
+    /// <summary>Fills the category and rarity filters with what the current location holds.</summary>
+    private void UpdateFilterChoices()
+    {
+        _updatingChoices = true;
+        try
+        {
+            var cards = InSelectedLocation().ToList();
+            var category = SelectedCategory?.Value;
+            var rarity = SelectedRarity?.Value;
+
+            CategoryChoices.Clear();
+            CategoryChoices.Add(AllCategories);
+            foreach (var group in cards.GroupBy(c => c.Entry.Category ?? ItemCategories.Other)
+                         .OrderBy(g => ItemCategories.CategoryRank(g.Key)))
+                CategoryChoices.Add(new FilterChoice($"{group.Key} ({group.Sum(c => c.Entry.Quantity)})", group.Key));
+
+            RarityChoices.Clear();
+            RarityChoices.Add(AllRarities);
+            foreach (var group in cards.Where(c => !string.IsNullOrEmpty(c.Entry.Rarity))
+                         .GroupBy(c => c.Entry.Rarity!)
+                         .OrderBy(g => ItemCategories.RarityRank(g.Key)))
+                RarityChoices.Add(new FilterChoice($"{group.Key} ({group.Sum(c => c.Entry.Quantity)})", group.Key));
+
+            SelectedCategory = CategoryChoices.FirstOrDefault(c => c.Value == category) ?? AllCategories;
+            SelectedRarity = RarityChoices.FirstOrDefault(c => c.Value == rarity) ?? AllRarities;
+        }
+        finally
+        {
+            _updatingChoices = false;
+        }
+    }
 
     [ObservableProperty]
     private string _searchText = "";
@@ -148,6 +248,7 @@ public partial class InventoryViewModel : ObservableObject
     {
         if (value is not null)
         {
+            UpdateFilterChoices();
             UpdateTotals();
             ApplyView();
         }
@@ -182,6 +283,12 @@ public partial class InventoryViewModel : ObservableObject
         {
             await ShowStoredAsync();
             _loadedSteamId = steamId;
+
+            // Lines saved by an older version have no category: download them again so the filters work.
+            if (_all.Any(c => c.Entry.Category is null && c.Entry.ContainerId is null))
+                _settings.InventoryUpdatedAt = null;
+            if (_all.Any(c => c.Entry.Category is null && c.Entry.ContainerId is not null))
+                _settings.StorageUpdatedAt = null;
         }
 
         var updatedAt = _settings.InventoryUpdatedAt;
@@ -243,6 +350,7 @@ public partial class InventoryViewModel : ObservableObject
                 Name = "Storage Unit",
                 CustomName = unitNames[unit.Id],
                 Type = "Storage Unit",
+                Category = ItemCategories.StorageUnit,
                 IconPath = unit.IconPath,
                 Quantity = 1,
                 IsStorageUnit = true
@@ -259,6 +367,7 @@ public partial class InventoryViewModel : ObservableObject
         SelectedLocation = LocationChoices.FirstOrDefault(l => l.Everything == selectedEverything && l.ContainerId == selectedId)
                            ?? MainInventory;
 
+        UpdateFilterChoices();
         UpdateTotals();
         ApplyView();
         UpdateStatus();
@@ -512,6 +621,12 @@ public partial class InventoryViewModel : ObservableObject
         if (!ShowUnmarketable)
             view = view.Where(c => c.IsSellable);
 
+        if (SelectedCategory?.Value is { } category)
+            view = view.Where(c => (c.Entry.Category ?? ItemCategories.Other) == category);
+
+        if (SelectedRarity?.Value is { } rarity)
+            view = view.Where(c => c.Entry.Rarity == rarity);
+
         var query = SearchText?.Trim();
         if (!string.IsNullOrEmpty(query))
             view = view.Where(c =>
@@ -519,11 +634,26 @@ public partial class InventoryViewModel : ObservableObject
                 c.Entry.Name.Contains(query, StringComparison.CurrentCultureIgnoreCase) ||
                 (c.Entry.Type?.Contains(query, StringComparison.CurrentCultureIgnoreCase) ?? false));
 
-        view = (SelectedSort ?? SortChoices[0]).Apply(view);
+        var sorted = (SelectedSort ?? SortChoices[0]).Apply(view).ToList();
 
-        Items.Clear();
-        foreach (var card in view)
-            Items.Add(card);
+        Groups.Clear();
+        if (GroupByCategory)
+        {
+            foreach (var group in sorted.GroupBy(c => c.Entry.Category ?? ItemCategories.Other)
+                         .OrderBy(g => ItemCategories.CategoryRank(g.Key)))
+            {
+                var value = group.Where(c => !c.Entry.IsStorageUnit || !(SelectedLocation?.Everything ?? false))
+                    .Sum(c => c.TotalValue ?? 0);
+                Groups.Add(new ItemGroup(group.Key, $"{group.Sum(c => c.Entry.Quantity)} · {ItemCard.FormatEuro(value)}", group));
+            }
+        }
+        else if (sorted.Count > 0)
+        {
+            Groups.Add(new ItemGroup("", "", sorted));
+        }
+
+        var active = (SelectedCategory?.Value is null ? 0 : 1) + (SelectedRarity?.Value is null ? 0 : 1) + (ShowUnmarketable ? 0 : 1);
+        FiltersButtonText = active == 0 ? "Filters" : $"Filters ({active})";
     }
 
     [RelayCommand]

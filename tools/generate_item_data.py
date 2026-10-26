@@ -62,6 +62,23 @@ def color(item):
     return (rarity.get("color") or "").lstrip("#")
 
 
+def rarity_name(item):
+    return (item.get("rarity") or {}).get("name") or ""
+
+
+# Sniper rifles are listed with the rifles in the source data.
+SNIPER_IDS = {9, 11, 38, 40}  # AWP, G3SG1, SCAR-20, SSG 08
+WEAPON_CATEGORIES = {"Knives": "Knife", "Gloves": "Gloves", "Pistols": "Pistol", "SMGs": "SMG", "Heavy": "Heavy",
+                     "Rifles": "Rifle", "Equipment": "Other"}
+
+
+def weapon_category(category, weapon_id):
+    """App category of a weapon (same names as the Steam inventory "Type" tag, simplified)."""
+    if category == "Rifles" and weapon_id in SNIPER_IDS:
+        return "Sniper Rifle"
+    return WEAPON_CATEGORIES.get(category, "Other")
+
+
 def strip_star(name):
     return name[2:] if name.startswith("★ ") else name
 
@@ -70,12 +87,17 @@ def main():
     folder = sys.argv[1] if len(sys.argv) > 1 else None
     out = {"version": 1, "clientVersion": client_version(folder), "defs": {}, "skins": {}, "stickers": {}, "patches": {}, "graffiti": {}, "music": {}, "charms": {}}
 
-    # Plain items by definition index. Kind: k = knife, g = gloves (both get the ★ prefix), w = weapon.
+    # Rows are [name, rarity color, image, ...]; see each table below for the extra columns.
+
+    # Plain items by definition index: [name, color, image, kind, category, rarity].
+    # Kind: k = knife, g = gloves (both get the ★ prefix), w = weapon, m = marketable item, i = unmarketable item.
     for w in load("base_weapons", folder):
         category = (w.get("category") or {}).get("name")
         kind = "k" if category == "Knives" else "g" if category == "Gloves" else "w"
-        out["defs"][str(w["def_index"])] = [w["name"], "", image(w.get("image")), kind]
+        out["defs"][str(w["def_index"])] = [w["name"], "", image(w.get("image")), kind,
+                                            weapon_category(category, w["def_index"]), ""]
 
+    def_categories = {"crates": "Container", "keys": "Key", "collectibles": "Collectible", "agents": "Agent", "tools": "Tool"}
     for name in ("crates", "keys", "collectibles", "agents", "tools"):
         for item in load(name, folder):
             if item.get("def_index") is None:
@@ -83,31 +105,40 @@ def main():
             # m = sold on the market, i = cannot be sold (most coins, pins, tools...).
             marketable = bool(item.get("market_hash_name")) and item.get("marketable", True)
             display = item.get("market_hash_name") or item["name"]
-            out["defs"].setdefault(str(item["def_index"]), [display, color(item), image(item.get("image")), "m" if marketable else "i"])
+            out["defs"].setdefault(str(item["def_index"]), [display, color(item), image(item.get("image")),
+                                                            "m" if marketable else "i", def_categories[name], rarity_name(item)])
 
-    # Weapon skins by "<definition index>_<paint kit>". Vanilla knives have no paint kit and use "_0".
+    # Weapon skins by "<definition index>_<paint kit>": [name, color, image, category, rarity].
+    # Vanilla knives have no paint kit and use "_0".
     for skin in load("skins", folder):
         weapon_id = (skin.get("weapon") or {}).get("weapon_id")
         if weapon_id is None:
             continue
         paint = skin.get("paint_index") or "0"
-        out["skins"][f"{weapon_id}_{paint}"] = [strip_star(skin["name"]), color(skin), image(skin.get("image"))]
+        category = weapon_category((skin.get("category") or {}).get("name"), weapon_id)
+        out["skins"][f"{weapon_id}_{paint}"] = [strip_star(skin["name"]), color(skin), image(skin.get("image")),
+                                                category, rarity_name(skin)]
+
+    # Stickers, patches, charms, graffiti and music kits: [name, color, image, rarity].
 
     for name, key in (("stickers", "stickers"), ("patches", "patches"), ("keychains", "charms")):
         for item in load(name, folder):
-            out[key][str(item["def_index"])] = [item.get("market_hash_name") or item["name"], color(item), image(item.get("image"))]
+            out[key][str(item["def_index"])] = [item.get("market_hash_name") or item["name"], color(item),
+                                                image(item.get("image")), rarity_name(item)]
 
     # Graffiti by "<sticker kit>" or "<sticker kit>_<tint id>" (ids look like "graffiti-1697_3").
     for item in load("graffiti", folder):
         suffix = item["id"].split("-", 1)[-1]
-        out["graffiti"][suffix] = [item.get("market_hash_name") or item["name"], color(item), image(item.get("image"))]
+        out["graffiti"][suffix] = [item.get("market_hash_name") or item["name"], color(item), image(item.get("image")),
+                                   rarity_name(item)]
 
     # Music kits by id; the StatTrak variants (ids ending in "_st") are built by the app from the quality.
     for item in load("music_kits", folder):
         kit_id = item["id"].split("-", 1)[-1]
         if kit_id.endswith("_st"):
             continue
-        out["music"][kit_id] = [item.get("market_hash_name") or item["name"], color(item), image(item.get("image"))]
+        out["music"][kit_id] = [item.get("market_hash_name") or item["name"], color(item), image(item.get("image")),
+                                rarity_name(item)]
 
     os.makedirs(os.path.dirname(OUTPUT), exist_ok=True)
     with open(OUTPUT, "w", encoding="utf-8") as f:

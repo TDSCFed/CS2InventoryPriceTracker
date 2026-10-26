@@ -25,6 +25,12 @@ public class InventoryEntry
     /// <summary>Item type line, e.g. "Classified Rifle".</summary>
     public string? Type { get; set; }
 
+    /// <summary>What the item is, e.g. "Rifle", "Knife", "Sticker", "Container" (see ItemCategories).</summary>
+    public string? Category { get; set; }
+
+    /// <summary>Rarity name, e.g. "Covert", "Classified", "High Grade".</summary>
+    public string? Rarity { get; set; }
+
     /// <summary>Rarity color as hex without '#', e.g. "d32ce6".</summary>
     public string? RarityColor { get; set; }
 
