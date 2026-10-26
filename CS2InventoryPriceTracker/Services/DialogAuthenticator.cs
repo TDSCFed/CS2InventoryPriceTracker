@@ -10,7 +10,7 @@ public class DialogAuthenticator(Page page, Action<string> showStatus) : IAuthen
 
     public Task<bool> AcceptDeviceConfirmationAsync() => MainThread.InvokeOnMainThreadAsync(async () =>
     {
-        var choice = await page.DisplayActionSheet("Steam Guard", "Cancel", null, ApproveOption, CodeOption);
+        var choice = await page.DisplayActionSheetAsync("Steam Guard", "Cancel", null, ApproveOption, CodeOption);
         if (choice == ApproveOption)
         {
             showStatus("Open the Steam app on your phone and approve the login…");
