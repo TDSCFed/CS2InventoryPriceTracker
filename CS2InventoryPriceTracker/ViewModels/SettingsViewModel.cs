@@ -4,18 +4,21 @@ using CS2InventoryPriceTracker.Services;
 
 namespace CS2InventoryPriceTracker.ViewModels;
 
-/// <summary>Chooses the Steam account whose inventory is shown.</summary>
+/// <summary>Chooses the Steam account whose inventory is shown, and manages the Steam login used for storage units.</summary>
 public partial class SettingsViewModel : ObservableObject
 {
     private readonly SettingsService _settings;
     private readonly SteamInventoryService _steam;
+    private readonly SteamSessionService _session;
     private readonly LocalStore _store;
     private readonly PriceUpdater _prices;
 
-    public SettingsViewModel(SettingsService settings, SteamInventoryService steam, LocalStore store, PriceUpdater prices)
+    public SettingsViewModel(SettingsService settings, SteamInventoryService steam, SteamSessionService session,
+        LocalStore store, PriceUpdater prices)
     {
         _settings = settings;
         _steam = steam;
+        _session = session;
         _store = store;
         _prices = prices;
         Load();
@@ -35,13 +38,37 @@ public partial class SettingsViewModel : ObservableObject
     private string? _avatarUrl;
 
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
+    [NotifyCanExecuteChangedFor(nameof(SaveCommand), nameof(LoginCommand))]
     private bool _isBusy;
 
     [ObservableProperty]
     private string? _message;
 
     public bool HasAccount => SteamId is not null;
+
+    // Steam login (storage units)
+
+    [ObservableProperty]
+    private string _loginAccountName = "";
+
+    [ObservableProperty]
+    private string _loginPassword = "";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsLoggedOut))]
+    private bool _isLoggedIn;
+
+    public bool IsLoggedOut => !IsLoggedIn;
+
+    [ObservableProperty]
+    private string? _loggedInText;
+
+    [ObservableProperty]
+    private string? _loginMessage;
+
+    /// <summary>True once something was logged while talking to Steam.</summary>
+    [ObservableProperty]
+    private bool _canCopyLog;
 
     public void Load()
     {
@@ -50,11 +77,19 @@ public partial class SettingsViewModel : ObservableObject
         AvatarUrl = _settings.AvatarUrl;
         if (string.IsNullOrEmpty(ProfileInput))
             ProfileInput = SteamId ?? "";
+        CanCopyLog = SteamDiagnostics.HasLines;
+        _ = LoadLoginStateAsync();
     }
 
-    private bool CanSave() => !IsBusy;
+    private async Task LoadLoginStateAsync()
+    {
+        IsLoggedIn = await _session.HasLoginAsync();
+        LoggedInText = IsLoggedIn ? $"Logged in as {_settings.LoginAccountName}" : null;
+    }
 
-    [RelayCommand(CanExecute = nameof(CanSave))]
+    private bool CanRun() => !IsBusy;
+
+    [RelayCommand(CanExecute = nameof(CanRun))]
     private async Task SaveAsync()
     {
         IsBusy = true;
@@ -62,15 +97,8 @@ public partial class SettingsViewModel : ObservableObject
         try
         {
             var profile = await _steam.ResolveProfileAsync(ProfileInput);
-            if (profile.SteamId != _settings.SteamId)
-            {
-                _prices.Stop();
-                await _store.ClearInventoryAsync();
-            }
-
-            _settings.SetAccount(profile.SteamId, profile.PersonaName, profile.AvatarUrl);
+            await SetAccountAsync(profile);
             ProfileInput = profile.SteamId;
-            Load();
 
             Message = profile.IsPublic
                 ? "Account saved. Open the Inventory tab to see your items."
@@ -88,5 +116,85 @@ public partial class SettingsViewModel : ObservableObject
         {
             IsBusy = false;
         }
+    }
+
+    private async Task SetAccountAsync(SteamProfile profile)
+    {
+        if (profile.SteamId != _settings.SteamId)
+        {
+            _prices.Stop();
+            await _store.ClearInventoryAsync();
+        }
+
+        _settings.SetAccount(profile.SteamId, profile.PersonaName, profile.AvatarUrl);
+        Load();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanRun))]
+    private async Task LoginAsync()
+    {
+        if (string.IsNullOrWhiteSpace(LoginAccountName) || string.IsNullOrEmpty(LoginPassword))
+        {
+            LoginMessage = "Enter your Steam account name and password.";
+            return;
+        }
+
+        var page = Shell.Current?.CurrentPage;
+        if (page is null)
+            return;
+
+        IsBusy = true;
+        LoginMessage = "Logging in…";
+        try
+        {
+            var authenticator = new DialogAuthenticator(page, text => MainThread.BeginInvokeOnMainThread(() => LoginMessage = text));
+            var steamId = await Task.Run(() => _session.LoginAsync(LoginAccountName, LoginPassword, authenticator));
+            LoginPassword = "";
+
+            // The inventory shown follows the logged-in account.
+            if (steamId != 0 && steamId.ToString() != _settings.SteamId)
+            {
+                var profile = await _steam.ResolveProfileAsync(steamId.ToString());
+                await SetAccountAsync(profile);
+                ProfileInput = profile.SteamId;
+            }
+
+            await LoadLoginStateAsync();
+            LoginMessage = "Logged in. Your storage units will load in the Inventory tab.";
+        }
+        catch (OperationCanceledException)
+        {
+            LoginMessage = "Login cancelled.";
+        }
+        catch (SteamException e)
+        {
+            LoginMessage = e.Message;
+        }
+        catch (Exception e)
+        {
+            SteamDiagnostics.Write($"Login error: {e}");
+            LoginMessage = "Couldn't log in to Steam. Check your internet connection and try again.";
+        }
+        finally
+        {
+            IsBusy = false;
+            CanCopyLog = SteamDiagnostics.HasLines;
+        }
+    }
+
+    /// <summary>Copies the Steam connection log, to share it when something fails.</summary>
+    [RelayCommand]
+    private async Task CopyLogAsync()
+    {
+        await Clipboard.Default.SetTextAsync(SteamDiagnostics.GetText());
+        LoginMessage = "Steam log copied. Paste it in a message to share it.";
+    }
+
+    [RelayCommand]
+    private async Task LogoutAsync()
+    {
+        _session.Logout();
+        await LoadLoginStateAsync();
+        LoginMessage = "Logged out. Storage units already loaded stay visible.";
     }
 }

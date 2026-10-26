@@ -29,6 +29,28 @@
 
             <BoxView HeightRequest="1" Opacity="0.15" Color="Gray" Margin="0,8" />
 
+            <!-- Steam login (storage units) -->
+            <Label Text="Storage units" FontSize="17" FontAttributes="Bold" />
+            <Label FontSize="13" Opacity="0.7"
+                   Text="Steam doesn't show what is inside storage units publicly. Log in to Steam to read them from CS2. Your password is only sent to Steam and never stored; the app keeps a Steam login token in the phone's secure storage. Loading storage units briefly shows you as playing CS2, so close CS2 on your PC first." />
+
+            <VerticalStackLayout Spacing="8" IsVisible="{Binding IsLoggedIn}">
+                <Label Text="{Binding LoggedInText}" FontSize="15" FontAttributes="Bold" />
+                <Button Text="Log out of Steam" Command="{Binding LogoutCommand}" />
+            </VerticalStackLayout>
+
+            <VerticalStackLayout Spacing="8" IsVisible="{Binding IsLoggedOut}">
+                <Entry Text="{Binding LoginAccountName}" Placeholder="Steam account name"
+                       Keyboard="Plain" IsSpellCheckEnabled="False" IsTextPredictionEnabled="False" />
+                <Entry Text="{Binding LoginPassword}" Placeholder="Password" IsPassword="True"
+                       ReturnCommand="{Binding LoginCommand}" />
+                <Button Text="Log in to Steam" Style="{StaticResource PrimaryButton}" Command="{Binding LoginCommand}" />
+            </VerticalStackLayout>
+            <Label Text="{Binding LoginMessage}" FontSize="13" />
+            <Button Text="Copy Steam log" IsVisible="{Binding CanCopyLog}" Command="{Binding CopyLogCommand}" />
+
+            <BoxView HeightRequest="1" Opacity="0.15" Color="Gray" Margin="0,8" />
+
             <Label Text="About prices" FontSize="17" FontAttributes="Bold" />
             <Label FontSize="13" Opacity="0.7"
                    Text="Prices come from the Steam Community Market, in euros: the cheapest current listing, or the median sale price when there are no listings. Steam allows only about 20 price requests per minute, so the first load of a big inventory takes a while. Prices are kept on the phone and refreshed after 12 hours." />

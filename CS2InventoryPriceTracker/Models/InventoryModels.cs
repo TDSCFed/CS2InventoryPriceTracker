@@ -42,7 +42,9 @@ public class InventoryEntry
     [Ignore]
     public string? IconUrl => string.IsNullOrEmpty(IconPath)
         ? null
-        : $"https://community.akamai.steamstatic.com/economy/image/{IconPath}/128fx128f";
+        : IconPath.StartsWith("http", StringComparison.Ordinal)
+            ? IconPath
+            : $"https://community.akamai.steamstatic.com/economy/image/{IconPath}/128fx128f";
 
     public static string MakeKey(string? containerId, bool marketable, string marketHashName, string name, string? customName)
         => marketable
@@ -81,6 +83,28 @@ public class PriceEntry
     public double? BestPrice => LowestPrice ?? MedianPrice;
 
     public static string MakeKey(string source, string marketHashName) => $"{source}|{marketHashName}";
+}
+
+/// <summary>A storage unit whose contents were loaded from the CS2 Game Coordinator.</summary>
+[Table("storage_units")]
+public class StorageUnit
+{
+    /// <summary>Item id of the storage unit (same as its asset id in the Steam inventory).</summary>
+    [PrimaryKey]
+    public string Id { get; set; } = "";
+
+    /// <summary>Name given to the storage unit in game.</summary>
+    public string? Name { get; set; }
+
+    public int ItemCount { get; set; }
+
+    /// <summary>Icon of the storage unit item.</summary>
+    public string? IconPath { get; set; }
+
+    public DateTime UpdatedAt { get; set; }
+
+    [Ignore]
+    public string DisplayName => string.IsNullOrEmpty(Name) ? "Storage Unit" : Name;
 }
 
 /// <summary>A price returned by a market.</summary>

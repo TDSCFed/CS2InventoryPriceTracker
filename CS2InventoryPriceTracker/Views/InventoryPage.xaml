@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:CS2InventoryPriceTracker.ViewModels"
              x:Class="CS2InventoryPriceTracker.Views.InventoryPage"
              Title="Inventory">
 
@@ -19,7 +20,7 @@
             <Button Text="Add Steam account" Style="{StaticResource PrimaryButton}" Command="{Binding GoToAccountCommand}" />
         </VerticalStackLayout>
 
-        <Grid IsVisible="{Binding HasAccount}" RowDefinitions="Auto,Auto,Auto,Auto,*" Padding="12,8" RowSpacing="6">
+        <Grid IsVisible="{Binding HasAccount}" RowDefinitions="Auto,Auto,Auto,Auto,Auto,*" Padding="12,8" RowSpacing="6">
 
             <!-- Total value -->
             <Border Grid.Row="0" Style="{StaticResource Card}" Padding="12">
@@ -36,8 +37,15 @@
             <!-- Price progress / last update -->
             <Label Grid.Row="1" Text="{Binding StatusText}" FontSize="12" Opacity="0.7" />
 
+            <!-- Storage unit loading -->
+            <HorizontalStackLayout Grid.Row="2" Spacing="8" IsVisible="{Binding IsLoadingStorage}">
+                <ActivityIndicator IsRunning="{Binding IsLoadingStorage}" Color="{StaticResource Primary}"
+                                   WidthRequest="16" HeightRequest="16" />
+                <Label Text="{Binding StorageStatusText}" FontSize="12" VerticalOptions="Center" />
+            </HorizontalStackLayout>
+
             <!-- Errors -->
-            <Label Grid.Row="2" Text="{Binding ErrorText}" FontSize="13" TextColor="#E5484D">
+            <Label Grid.Row="3" Text="{Binding ErrorText}" FontSize="13" TextColor="#E5484D">
                 <Label.Triggers>
                     <DataTrigger TargetType="Label" Binding="{Binding ErrorText}" Value="{x:Null}">
                         <Setter Property="IsVisible" Value="False" />
@@ -45,20 +53,24 @@
                 </Label.Triggers>
             </Label>
 
-            <!-- Search and sort -->
-            <Grid Grid.Row="3" RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto" ColumnSpacing="8">
+            <!-- Search, location and sort -->
+            <Grid Grid.Row="4" RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="*,Auto" ColumnSpacing="8">
                 <SearchBar Grid.ColumnSpan="2" Placeholder="Search items..." Text="{Binding SearchText}" />
-                <Picker Grid.Row="1" Title="Sort by"
+                <Picker Grid.Row="1" Grid.ColumnSpan="2" Title="Location"
+                        ItemsSource="{Binding LocationChoices}"
+                        ItemDisplayBinding="{Binding Label}"
+                        SelectedItem="{Binding SelectedLocation}" />
+                <Picker Grid.Row="2" Title="Sort by"
                         ItemsSource="{Binding SortChoices}"
                         ItemDisplayBinding="{Binding Label}"
                         SelectedItem="{Binding SelectedSort}" />
-                <HorizontalStackLayout Grid.Row="1" Grid.Column="1" Spacing="4" VerticalOptions="Center">
+                <HorizontalStackLayout Grid.Row="2" Grid.Column="1" Spacing="4" VerticalOptions="Center">
                     <Label Text="Unmarketable" FontSize="12" VerticalOptions="Center" Opacity="0.7" />
                     <Switch IsToggled="{Binding ShowUnmarketable}" OnColor="{StaticResource Primary}" />
                 </HorizontalStackLayout>
             </Grid>
 
-            <RefreshView Grid.Row="4"
+            <RefreshView Grid.Row="5"
                          IsRefreshing="{Binding IsRefreshing}"
                          Command="{Binding RefreshCommand}"
                          RefreshColor="{StaticResource Primary}">
@@ -78,6 +90,11 @@
                     <CollectionView.ItemTemplate>
                         <DataTemplate>
                             <Border Style="{StaticResource Card}">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer
+                                        Command="{Binding Source={RelativeSource AncestorType={x:Type vm:InventoryViewModel}}, Path=OpenItemCommand}"
+                                        CommandParameter="{Binding .}" />
+                                </Border.GestureRecognizers>
                                 <Grid ColumnDefinitions="4,72,*,Auto" ColumnSpacing="10">
                                     <!-- Rarity -->
                                     <BoxView Color="{Binding RarityColor}" CornerRadius="2" />
