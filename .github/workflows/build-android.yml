@@ -46,9 +46,26 @@ jobs:
         continue-on-error: true
         run: python3 tools/generate_item_data.py
 
-      # Debug build, signed with the default debug key and with assemblies embedded,
-      # so the APK installs and runs standalone on a phone.
+      # Every APK is signed with the same key (from repository secrets), so a new build installs over the
+      # previous one and keeps the app data (Steam login, cached prices). Without the secrets (e.g. pull requests
+      # from forks) the build falls back to a debug key, which needs the old app uninstalled first.
+      - name: Prepare signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ] || [ -z "$KEYSTORE_PASSWORD" ]; then
+            echo "::warning::Signing secrets are not set; the APK is signed with a temporary debug key."
+            echo "SIGNING_ARGS=" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/cs2inventory.keystore"
+          echo "SIGNING_ARGS=-p:AndroidKeyStore=true -p:AndroidSigningKeyStore=$RUNNER_TEMP/cs2inventory.keystore -p:AndroidSigningKeyAlias=cs2inventory -p:AndroidSigningKeyPass=env:KEYSTORE_PASSWORD -p:AndroidSigningStorePass=env:KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+
+      # Debug build with assemblies embedded, so the APK installs and runs standalone on a phone.
       - name: Build APK
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
         run: >
           dotnet build CS2InventoryPriceTracker/CS2InventoryPriceTracker.csproj
           -c Debug
@@ -56,6 +73,7 @@ jobs:
           -p:EmbedAssembliesIntoApk=true
           -p:AndroidPackageFormat=apk
           -p:AndroidSdkDirectory="$ANDROID_HOME"
+          $SIGNING_ARGS
 
       # archive: false uploads the APK as-is (not wrapped in a zip), so it can be
       # downloaded from the run page and installed directly.
