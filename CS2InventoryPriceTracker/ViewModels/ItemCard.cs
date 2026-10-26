@@ -1,17 +1,20 @@
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CS2InventoryPriceTracker.Models;
+using CS2InventoryPriceTracker.Services;
 
 namespace CS2InventoryPriceTracker.ViewModels;
 
 /// <summary>An inventory line shown in the Inventory page.</summary>
 public partial class ItemCard : ObservableObject
 {
-    public ItemCard(InventoryEntry entry, PriceEntry? price, string? location)
+    public ItemCard(InventoryEntry entry, IEnumerable<PriceEntry>? prices, string? location, string priceSource)
     {
         Entry = entry;
         Location = location;
-        _price = price;
+        _priceSource = priceSource;
+        foreach (var price in prices ?? [])
+            _prices[price.Source] = price;
     }
 
     public InventoryEntry Entry { get; }
@@ -63,9 +66,46 @@ public partial class ItemCard : ObservableObject
         }
     }
 
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(UnitPrice), nameof(TotalValue), nameof(PriceText), nameof(TotalText), nameof(HasTotal))]
-    private PriceEntry? _price;
+    private readonly Dictionary<string, PriceEntry> _prices = new();
+    private string _priceSource;
+
+    /// <summary>Market used for this card's value (see <see cref="PriceSources"/>), or "lowest" for the cheapest market.</summary>
+    public string PriceSource
+    {
+        get => _priceSource;
+        set
+        {
+            if (_priceSource == value)
+                return;
+            _priceSource = value;
+            RaisePriceChanged();
+        }
+    }
+
+    /// <summary>Saves a new price from one market.</summary>
+    public void SetPrice(PriceEntry price)
+    {
+        _prices[price.Source] = price;
+        RaisePriceChanged();
+    }
+
+    /// <summary>The price used for the value: the selected market's, or the cheapest one for "lowest".</summary>
+    public PriceEntry? Price
+    {
+        get
+        {
+            if (_priceSource != PriceSources.Lowest)
+                return _prices.GetValueOrDefault(_priceSource);
+
+            return _prices.Values
+                .Where(p => p.BestPrice is not null)
+                .MinBy(p => p.BestPrice)
+                ?? _prices.Values.FirstOrDefault();
+        }
+    }
+
+    /// <summary>True once the selected market (any market for "lowest") answered for this item.</summary>
+    public bool HasPrice => _priceSource == PriceSources.Lowest ? _prices.Count > 0 : _prices.ContainsKey(_priceSource);
 
     /// <summary>Price of one copy in euros, if known.</summary>
     public double? UnitPrice => Entry.Marketable ? Price?.BestPrice : null;
@@ -81,17 +121,53 @@ public partial class ItemCard : ObservableObject
                 return "";
             if (!Entry.Marketable)
                 return "Not marketable";
-            if (Price is null)
+            var price = Price;
+            if (price is null)
                 return "Loading price…";
-            if (Price.NotListed)
+            if (price.BestPrice is null)
                 return "No listings";
             return FormatEuro(UnitPrice);
         }
     }
 
+    /// <summary>Prices on every market, e.g. "Steam 1,23 € · Skinport 0,98 €".</summary>
+    public string MarketPricesText
+    {
+        get
+        {
+            if (!Entry.Marketable || _prices.Count == 0)
+                return "";
+
+            var parts = PriceSources.All
+                .Where(_prices.ContainsKey)
+                .Select(source =>
+                {
+                    var best = _prices[source].BestPrice;
+                    var text = $"{PriceSources.ShortName(source)} {(best is null ? "—" : FormatEuro(best))}";
+                    return source == Price?.Source && _priceSource == PriceSources.Lowest ? text + " ✓" : text;
+                });
+            return string.Join(" · ", parts);
+        }
+    }
+
+    public bool HasMarketPrices => MarketPricesText.Length > 0;
+
     public bool HasTotal => HasQuantity && TotalValue is not null;
 
     public string TotalText => HasTotal ? $"Total {FormatEuro(TotalValue)}" : "";
+
+    private void RaisePriceChanged()
+    {
+        OnPropertyChanged(nameof(Price));
+        OnPropertyChanged(nameof(HasPrice));
+        OnPropertyChanged(nameof(UnitPrice));
+        OnPropertyChanged(nameof(TotalValue));
+        OnPropertyChanged(nameof(PriceText));
+        OnPropertyChanged(nameof(MarketPricesText));
+        OnPropertyChanged(nameof(HasMarketPrices));
+        OnPropertyChanged(nameof(HasTotal));
+        OnPropertyChanged(nameof(TotalText));
+    }
 
     private static readonly CultureInfo Portugal = CultureInfo.GetCultureInfo("pt-PT");
 

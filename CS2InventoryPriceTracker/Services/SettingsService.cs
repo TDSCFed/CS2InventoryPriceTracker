@@ -10,6 +10,7 @@ public class SettingsService
     private const string StorageUpdatedKey = "storage_updated";
     private const string LoginAccountNameKey = "login_account_name";
     private const string LoginSteamIdKey = "login_steam_id";
+    private const string PriceSourceKey = "price_source";
 
     /// <summary>SteamID64 of the account whose inventory is shown, e.g. "76561198000000000".</summary>
     public string? SteamId
@@ -64,6 +65,13 @@ public class SettingsService
     {
         get => NullIfEmpty(Preferences.Get(LoginSteamIdKey, ""));
         set => Preferences.Set(LoginSteamIdKey, value ?? "");
+    }
+
+    /// <summary>Market whose prices are used for values and totals (see <see cref="PriceSources"/>).</summary>
+    public string PriceSource
+    {
+        get => Preferences.Get(PriceSourceKey, PriceSources.Steam);
+        set => Preferences.Set(PriceSourceKey, value);
     }
 
     /// <summary>Raised when the selected account changes.</summary>

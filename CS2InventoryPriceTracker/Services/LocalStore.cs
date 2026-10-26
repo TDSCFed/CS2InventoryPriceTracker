@@ -92,6 +92,14 @@ public class LocalStore
         return rows.ToDictionary(p => p.MarketHashName);
     }
 
+    /// <summary>Cached prices of every market, grouped by market hash name.</summary>
+    public async Task<Dictionary<string, List<PriceEntry>>> GetAllPricesAsync()
+    {
+        var db = await GetDbAsync();
+        var rows = await db.Table<PriceEntry>().ToListAsync();
+        return rows.GroupBy(p => p.MarketHashName).ToDictionary(g => g.Key, g => g.ToList());
+    }
+
     public async Task SavePriceAsync(PriceEntry price)
     {
         var db = await GetDbAsync();

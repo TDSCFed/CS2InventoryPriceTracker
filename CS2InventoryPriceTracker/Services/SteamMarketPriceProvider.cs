@@ -16,9 +16,10 @@ public class SteamMarketPriceProvider(HttpClient http) : IPriceProvider
     private static readonly TimeSpan DelayBetweenRequests = TimeSpan.FromSeconds(3.5);
     private static readonly TimeSpan RateLimitPause = TimeSpan.FromSeconds(65);
 
-    public string Source => "steam";
+    public string Source => PriceSources.Steam;
     public string DisplayName => "Steam Market";
     public TimeSpan MaxAge => TimeSpan.FromHours(12);
+    public TimeSpan TimePerItem => DelayBetweenRequests;
 
     public async Task FetchAsync(IReadOnlyList<string> marketHashNames, Func<PriceQuote, Task> onQuote, CancellationToken ct)
     {

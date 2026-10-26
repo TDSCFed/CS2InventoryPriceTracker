@@ -28,7 +28,10 @@ public static class MauiProgram
         builder.Services.AddSingleton<SettingsService>();
         builder.Services.AddSingleton<LocalStore>();
         builder.Services.AddSingleton<SteamInventoryService>();
+        // Markets, in the order they are shown on item cards.
         builder.Services.AddSingleton<IPriceProvider, SteamMarketPriceProvider>();
+        builder.Services.AddSingleton<IPriceProvider, SkinportPriceProvider>();
+        builder.Services.AddSingleton<IPriceProvider, CsgoMarketPriceProvider>();
         builder.Services.AddSingleton<PriceUpdater>();
         builder.Services.AddSingleton<ItemCatalog>();
         builder.Services.AddSingleton<SteamSessionService>();

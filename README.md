@@ -5,14 +5,11 @@ Android app (.NET MAUI) to see a Counter-Strike 2 Steam inventory and the curren
 ## Features
 
 - Loads the CS2 inventory of a public Steam profile (SteamID64, profile link or custom URL name)
-- Current price of every marketable item on the Steam Community Market, plus quantity and total value
+- Current price of every marketable item on the Steam Community Market, Skinport and Market.CSGO, plus quantity and
+  total value (choose which market the totals use, or the cheapest one)
 - Search, sort (value, unit price, name, quantity) and hide unmarketable items
 - Optional Steam login to see what is inside storage units, with the value of each storage unit
 - Inventory and prices are kept on the phone, so the app opens instantly and works offline
-
-### Planned
-
-- Prices from other markets (Skinport, CSFloat, ...) through `IPriceProvider`
 
 ## Download
 
@@ -38,7 +35,8 @@ Command line alternative:
 dotnet build CS2InventoryPriceTracker/CS2InventoryPriceTracker.csproj -t:Run -f net10.0-android
 ```
 
-No API keys are needed: the app uses Steam's public inventory and market price endpoints.
+No API keys are needed: the app uses Steam's public inventory and market price endpoints, and the public price lists
+of Skinport and Market.CSGO.
 
 ## Storage units
 
@@ -56,15 +54,24 @@ build; run `python tools/generate_item_data.py` to update the committed copy.
 
 ## Prices
 
-The Steam Market only allows about 20 price requests per minute, so the first load of a large inventory takes a few
-minutes. Prices are cached in SQLite and refreshed after 12 hours (or on demand with **Update prices** in the menu).
-The price shown is the cheapest current listing, or the median sale price when there are no listings.
+Every market is a `IPriceProvider`; they all refresh at the same time and each card lists the price on every market.
+The **Account** tab chooses which market values and totals use (Steam Market by default, or the cheapest market).
+
+| Market | How | Refreshed |
+| --- | --- | --- |
+| Steam Market | one request per item, about 20 per minute | every 12 hours |
+| Skinport | `api.skinport.com/v1/items`, every item at once (Brotli required) | every 30 minutes |
+| Market.CSGO | `market.csgo.com/api/v2/prices/EUR.json`, every item at once | every 30 minutes |
+
+Prices are cached in SQLite (or refreshed on demand with **Update prices** in the menu). The price shown is the cheapest
+current listing, or the median sale price when nothing is listed. Bulk markets are subclasses of `BulkPriceProvider`,
+so adding another one only needs its download and parsing.
 
 ## Structure
 
 - `Models/` - SQLite entities (inventory lines and cached prices)
 - `Services/` - `SteamInventoryService` (profiles and inventory), `IPriceProvider` with `SteamMarketPriceProvider`,
-  `PriceUpdater` (background price refresh), `SteamSessionService` (Steam login and CS2 Game Coordinator),
+  `SkinportPriceProvider` and `CsgoMarketPriceProvider`, `PriceUpdater` (background price refresh), `SteamSessionService` (Steam login and CS2 Game Coordinator),
   `StorageUnitService` + `ItemCatalog` (storage unit contents), `LocalStore` (SQLite) and `SettingsService`
 - `tools/` - `generate_item_data.py` (item names for storage unit contents)
 - `ViewModels/` - MVVM view models (CommunityToolkit.Mvvm)
