@@ -4,6 +4,9 @@ using CS2InventoryPriceTracker.Services;
 
 namespace CS2InventoryPriceTracker.ViewModels;
 
+/// <summary>A market the user can pick for values and totals.</summary>
+public record PriceSourceChoice(string Label, string Id);
+
 /// <summary>Chooses the Steam account whose inventory is shown, and manages the Steam login used for storage units.</summary>
 public partial class SettingsViewModel : ObservableObject
 {
@@ -46,6 +49,23 @@ public partial class SettingsViewModel : ObservableObject
 
     public bool HasAccount => SteamId is not null;
 
+    public IReadOnlyList<PriceSourceChoice> PriceSourceChoices { get; } =
+    [
+        new("Steam Market", PriceSources.Steam),
+        new("Skinport", PriceSources.Skinport),
+        new("Market.CSGO", PriceSources.CsgoMarket),
+        new("Cheapest market", PriceSources.Lowest)
+    ];
+
+    [ObservableProperty]
+    private PriceSourceChoice? _selectedPriceSource;
+
+    partial void OnSelectedPriceSourceChanged(PriceSourceChoice? value)
+    {
+        if (value is not null)
+            _settings.PriceSource = value.Id;
+    }
+
     // Steam login (storage units)
 
     [ObservableProperty]
@@ -72,6 +92,7 @@ public partial class SettingsViewModel : ObservableObject
 
     public void Load()
     {
+        SelectedPriceSource = PriceSourceChoices.FirstOrDefault(c => c.Id == _settings.PriceSource) ?? PriceSourceChoices[0];
         SteamId = _settings.SteamId;
         PersonaName = _settings.PersonaName;
         AvatarUrl = _settings.AvatarUrl;

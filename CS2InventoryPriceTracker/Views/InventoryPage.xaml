@@ -105,6 +105,8 @@
                                                LineBreakMode="TailTruncation" MaxLines="2" />
                                         <Label Text="{Binding Subtitle}" FontSize="12" Opacity="0.7"
                                                LineBreakMode="TailTruncation" />
+                                        <Label Text="{Binding MarketPricesText}" IsVisible="{Binding HasMarketPrices}"
+                                               FontSize="11" Opacity="0.6" LineBreakMode="WordWrap" />
                                     </VerticalStackLayout>
                                     <VerticalStackLayout Grid.Column="3" Spacing="2" VerticalOptions="Center"
                                                          HorizontalOptions="End">

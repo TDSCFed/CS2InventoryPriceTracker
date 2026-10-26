@@ -30,6 +30,11 @@ public partial class InventoryViewModel : ObservableObject
     private List<StorageUnit> _units = new();
     private Dictionary<string, List<ItemCard>> _byHashName = new();
     private string? _loadedSteamId;
+    private string _priceSource = PriceSources.Steam;
+
+    private string PriceSourceName => _priceSource == PriceSources.Lowest
+        ? "the cheapest market"
+        : _prices.Markets.FirstOrDefault(m => m.Provider.Source == _priceSource)?.Provider.DisplayName ?? _priceSource;
     private bool _pricesWereRunning;
 
     public InventoryViewModel(SettingsService settings, LocalStore store, SteamInventoryService steam,
@@ -160,6 +165,16 @@ public partial class InventoryViewModel : ObservableObject
             return;
         }
 
+        if (_settings.PriceSource != _priceSource && _all.Count > 0)
+        {
+            _priceSource = _settings.PriceSource;
+            foreach (var card in _all)
+                card.PriceSource = _priceSource;
+            ApplyView();
+            UpdateTotals();
+            UpdateStatus();
+        }
+
         var accountChanged = _loadedSteamId != steamId;
         if (accountChanged || _all.Count == 0)
         {
@@ -182,7 +197,8 @@ public partial class InventoryViewModel : ObservableObject
     private async Task ShowStoredAsync()
     {
         var entries = await _store.GetInventoryAsync();
-        var prices = await _store.GetPricesAsync(_prices.Primary.Source);
+        var prices = await _store.GetAllPricesAsync();
+        _priceSource = _settings.PriceSource;
         _units = (await _store.GetStorageUnitsAsync())
             .OrderBy(u => u.DisplayName, StringComparer.CurrentCultureIgnoreCase)
             .ThenByDescending(u => u.ItemCount)
@@ -198,7 +214,8 @@ public partial class InventoryViewModel : ObservableObject
             .Select(e => new ItemCard(
                 e,
                 e.Marketable && prices.TryGetValue(e.MarketHashName, out var p) ? p : null,
-                e.ContainerId is not null && unitNames.TryGetValue(e.ContainerId, out var name) ? name : null))
+                e.ContainerId is not null && unitNames.TryGetValue(e.ContainerId, out var name) ? name : null,
+                _priceSource))
             .ToList();
         _byHashName = _all
             .Where(c => c.Entry.Marketable)
@@ -227,7 +244,7 @@ public partial class InventoryViewModel : ObservableObject
                 IconPath = unit.IconPath,
                 Quantity = 1,
                 IsStorageUnit = true
-            }, null, null) { StorageUnitId = unit.Id });
+            }, null, null, _priceSource) { StorageUnitId = unit.Id });
         }
 
         var selectedId = SelectedLocation?.ContainerId;
@@ -360,7 +377,7 @@ public partial class InventoryViewModel : ObservableObject
                 return;
 
             foreach (var card in cards)
-                card.Price = price;
+                card.SetPrice(price);
             UpdateTotals();
         });
     }
@@ -378,7 +395,7 @@ public partial class InventoryViewModel : ObservableObject
 
         var copies = cards.Sum(c => c.Entry.Quantity);
         var marketable = cards.Where(c => c.Entry.Marketable).ToList();
-        var priced = marketable.Count(c => c.Price is not null);
+        var priced = marketable.Count(c => c.HasPrice);
         SummaryText = marketable.Count == priced
             ? $"{copies} items · {cards.Count} different"
             : $"{copies} items · {priced} of {marketable.Count} prices loaded";
@@ -398,19 +415,23 @@ public partial class InventoryViewModel : ObservableObject
 
     private void UpdateStatus()
     {
-        if (_prices.IsRunning && _prices.Total > 0)
+        var running = _prices.Markets.Where(m => m.IsRunning && m.Total > 0).ToList();
+        if (running.Count > 0)
         {
-            var left = _prices.Total - _prices.Done;
-            // About 3.5 seconds per Steam Market request.
-            var minutes = Math.Max(1, (int)Math.Ceiling(left * 3.5 / 60));
-            StatusText = $"Updating {_prices.Primary.DisplayName} prices: {_prices.Done}/{_prices.Total} (~{minutes} min left)";
+            StatusText = "Updating prices: " + string.Join(" · ", running.Select(m =>
+            {
+                var text = $"{m.Provider.DisplayName} {m.Done}/{m.Total}";
+                if (m.TimeLeft > TimeSpan.Zero)
+                    text += $" (~{Math.Max(1, (int)Math.Ceiling(m.TimeLeft.TotalMinutes))} min left)";
+                return text;
+            }));
         }
         else if (_settings.InventoryUpdatedAt is { } updated)
         {
             var text = $"Inventory updated {updated.ToLocalTime():dd/MM HH:mm}";
             if (_settings.StorageUpdatedAt is { } storage)
                 text += $" · storage units {storage.ToLocalTime():dd/MM HH:mm}";
-            StatusText = text + $" · prices from {_prices.Primary.DisplayName}";
+            StatusText = text + $" · values from {PriceSourceName}";
         }
         else
         {
