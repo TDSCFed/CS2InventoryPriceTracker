@@ -57,7 +57,7 @@
                     ItemDisplayBinding="{Binding Label}"
                     SelectedItem="{Binding SelectedPriceSource}" />
             <Label FontSize="13" Opacity="0.7"
-                   Text="Every item shows its price on each market, in euros: the cheapest current listing (or the median sale price when nothing is listed). Skinport and Market.CSGO send all prices at once and refresh every 30 minutes. The Steam Market allows only about 20 price requests per minute, so its first load of a big inventory takes a while; its prices are refreshed after 12 hours." />
+                   Text="Every item shows its price on each market, in euros: the cheapest current listing (or the median sale price when nothing is listed). Skinport and Market.CSGO send all prices at once and refresh every 30 minutes. The Steam Market allows only about 20 price requests per minute, so its first load of a big inventory takes a while: the most valuable items (by the other markets' prices) get their Steam price first. Steam prices are refreshed after 12 hours, or after 7 days for items worth less than 0,10 € elsewhere." />
             <Label FontSize="13" Opacity="0.7"
                    Text="The inventory must be public: in Steam, go to Edit Profile > Privacy Settings and set My profile and Inventory to Public." />
         </VerticalStackLayout>
