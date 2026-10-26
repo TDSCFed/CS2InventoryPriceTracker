@@ -9,7 +9,9 @@ Android app (.NET MAUI) to see a Counter-Strike 2 Steam inventory and the curren
   total value (choose which market the totals use, or the cheapest one)
 - Search, filters by type (knives, gloves, rifles, stickers, cases...) and rarity, sort (value, unit price, name,
   quantity), hide unmarketable items and group the list by type
-- Optional Steam login to see what is inside storage units, with the value of each storage unit
+- Optional Steam login to see what is inside storage units, with the value of each storage unit and how full it is
+  (out of 1000, with a warning from 950)
+- Trade-locked items (the hold after buying or trading) are marked with the unlock date and can be filtered
 - History tab: value of the whole account or of one storage unit over time (7/30/90 days or all), on any market
 - Item page: price on every market with links to them, price history, and for each copy the float, pattern,
   stickers and StatTrak kills (from CS2, with the Steam login)

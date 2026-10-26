@@ -106,7 +106,12 @@ public partial class SteamInventoryService(HttpClient http)
             if (!descriptions.TryGetValue((asset.ClassId, asset.InstanceId), out var d))
                 continue;
 
-            var marketable = d.Marketable == 1;
+            // Items that can normally be traded show tradable=0 while trade protected (the 7-day hold after
+            // buying or trading); they are sellable again afterwards, so they still count as marketable.
+            var tradableKind = d.MarketTradableRestriction is not null || d.Marketable == 1;
+            var locked = d.Tradable == 0 && tradableKind;
+            var lockedUntil = locked ? ParseLockDate(d) : null;
+            var marketable = d.Marketable == 1 || locked;
             var customName = ParseNameTag(d.FraudWarnings);
             var key = InventoryEntry.MakeKey(null, marketable, d.MarketHashName ?? d.Name ?? "", d.Name ?? "", customName);
             var amount = int.TryParse(asset.Amount, out var a) ? Math.Max(a, 1) : 1;
@@ -114,6 +119,12 @@ public partial class SteamInventoryService(HttpClient http)
             if (entries.TryGetValue(key, out var existing))
             {
                 existing.Quantity += amount;
+                if (locked)
+                {
+                    existing.LockedCount += amount;
+                    if (lockedUntil > existing.LockedUntil || existing.LockedUntil is null)
+                        existing.LockedUntil = lockedUntil;
+                }
                 continue;
             }
 
@@ -132,6 +143,8 @@ public partial class SteamInventoryService(HttpClient http)
                 IconPath = d.IconUrl,
                 Quantity = amount,
                 Marketable = marketable,
+                LockedCount = locked ? amount : 0,
+                LockedUntil = lockedUntil,
                 IsStorageUnit = d.MarketHashName == "Storage Unit" || d.Name == "Storage Unit"
             };
         }
@@ -187,6 +200,30 @@ public partial class SteamInventoryService(HttpClient http)
         }
     }
 
+    /// <summary>
+    /// End of the trade hold: the description's cache expiration, or the date in a
+    /// "Tradable/Marketable After Nov 2, 2026 (7:00:00) GMT" line when Steam includes one.
+    /// </summary>
+    private static DateTime? ParseLockDate(DescriptionDto d)
+    {
+        if (DateTime.TryParse(d.CacheExpiration, System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.AdjustToUniversal | System.Globalization.DateTimeStyles.AssumeUniversal, out var expires))
+            return expires;
+
+        foreach (var line in (d.OwnerDescriptions ?? []).Concat(d.Descriptions ?? []))
+        {
+            var match = LockDateRegex().Match(line.Value ?? "");
+            if (match.Success && DateTime.TryParse(match.Groups[1].Value.Replace(" (", " ").Replace(")", ""),
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.AdjustToUniversal | System.Globalization.DateTimeStyles.AssumeUniversal, out var date))
+                return date;
+        }
+        return null;
+    }
+
+    [GeneratedRegex(@"(?:Tradable|Marketable)\S*\s+After\s+(.+?)\s+GMT", RegexOptions.IgnoreCase)]
+    private static partial Regex LockDateRegex();
+
     /// <summary>Renamed items carry a warning like "Name Tag: ''My AK''".</summary>
     private static string? ParseNameTag(List<string>? warnings)
     {
@@ -240,8 +277,18 @@ public partial class SteamInventoryService(HttpClient http)
         [JsonPropertyName("icon_url")] public string? IconUrl { get; set; }
         [JsonPropertyName("name_color")] public string? NameColor { get; set; }
         [JsonPropertyName("marketable")] public int Marketable { get; set; }
+        [JsonPropertyName("tradable")] public int Tradable { get; set; } = 1;
+        [JsonPropertyName("market_tradable_restriction")] public int? MarketTradableRestriction { get; set; }
+        [JsonPropertyName("cache_expiration")] public string? CacheExpiration { get; set; }
+        [JsonPropertyName("owner_descriptions")] public List<DescriptionLineDto>? OwnerDescriptions { get; set; }
+        [JsonPropertyName("descriptions")] public List<DescriptionLineDto>? Descriptions { get; set; }
         [JsonPropertyName("fraudwarnings")] public List<string>? FraudWarnings { get; set; }
         [JsonPropertyName("tags")] public List<TagDto>? Tags { get; set; }
+    }
+
+    private sealed class DescriptionLineDto
+    {
+        [JsonPropertyName("value")] public string? Value { get; set; }
     }
 
     private sealed class TagDto

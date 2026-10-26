@@ -19,7 +19,8 @@ public record GcItem(
     int? CasketItemCount,
     int? PaintSeed = null,
     uint? KillCount = null,
-    IReadOnlyList<uint>? Stickers = null);
+    IReadOnlyList<uint>? Stickers = null,
+    DateTime? TradableAfter = null);
 
 /// <summary>What the app shows for a <see cref="GcItem"/>.</summary>
 public record ResolvedItem(string MarketHashName, string Name, string? Type, string? RarityColor, string? IconPath, bool Marketable,

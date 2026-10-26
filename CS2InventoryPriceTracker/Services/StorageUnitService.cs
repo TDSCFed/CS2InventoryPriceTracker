@@ -47,9 +47,16 @@ public class StorageUnitService(SteamSessionService session, ItemCatalog catalog
                     var key = InventoryEntry.MakeKey(containerId, resolved.Marketable, resolved.MarketHashName, resolved.Name, item.CustomName);
                     if (await ToDetailAsync(item, key) is { } detail)
                         details.Add(detail);
+                    var locked = item.TradableAfter > DateTime.UtcNow;
                     if (entries.TryGetValue(key, out var existing))
                     {
                         existing.Quantity++;
+                        if (locked)
+                        {
+                            existing.LockedCount++;
+                            if (existing.LockedUntil is null || item.TradableAfter > existing.LockedUntil)
+                                existing.LockedUntil = item.TradableAfter;
+                        }
                         continue;
                     }
 
@@ -66,6 +73,8 @@ public class StorageUnitService(SteamSessionService session, ItemCatalog catalog
                         IconPath = resolved.IconPath,
                         Quantity = 1,
                         Marketable = resolved.Marketable,
+                        LockedCount = locked ? 1 : 0,
+                        LockedUntil = locked ? item.TradableAfter : null,
                         ContainerId = containerId
                     };
                 }
@@ -104,7 +113,9 @@ public class StorageUnitService(SteamSessionService session, ItemCatalog catalog
             stickerNames.Add(await catalog.StickerNameAsync(kit) ?? $"Sticker #{kit}");
         }
 
-        if (item.PaintWear is null && item.PaintSeed is null && item.KillCount is null && stickerNames.Count == 0)
+        var tradableAfter = item.TradableAfter > DateTime.UtcNow ? item.TradableAfter : null;
+        if (item.PaintWear is null && item.PaintSeed is null && item.KillCount is null && stickerNames.Count == 0
+            && tradableAfter is null)
             return null;
 
         return new ItemDetail
@@ -114,6 +125,7 @@ public class StorageUnitService(SteamSessionService session, ItemCatalog catalog
             Float = item.PaintWear,
             Seed = item.PaintSeed,
             Kills = item.KillCount is { } kills ? (int)kills : null,
+            TradableAfter = tradableAfter,
             Stickers = stickerNames.Count > 0 ? string.Join("\n", stickerNames) : null,
             CustomName = item.CustomName
         };
