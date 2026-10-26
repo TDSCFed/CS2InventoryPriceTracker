@@ -657,5 +657,8 @@ public partial class InventoryViewModel : ObservableObject
     }
 
     [RelayCommand]
+    private Task OpenMarketCompareAsync() => Shell.Current.GoToAsync(AppShell.MarketCompareRoute);
+
+    [RelayCommand]
     private Task GoToAccountAsync() => Shell.Current.GoToAsync("//account");
 }
